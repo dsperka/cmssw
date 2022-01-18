@@ -1,4 +1,8 @@
 <lcgdict>
+  <class name="Run3ScoutingParticleV2" ClassVersion="4">
+   <version ClassVersion="4" checksum="1107037115"/>
+      <version ClassVersion="3" checksum="885941338"/>
+  </class>
   <class name="ScoutingCaloJet" ClassVersion="3">
       <version ClassVersion="2" checksum="2705685116"/>
       <version ClassVersion="3" checksum="631496401"/>
@@ -67,6 +71,7 @@
   <class name="std::vector<Run3ScoutingMuon>"/>
   <class name="std::vector<Run3ScoutingPhoton>"/>
   <class name="std::vector<Run3ScoutingTrack>"/>
+  <class name="std::vector<Run3ScoutingParticleV2>"/>
   <class name="edm::Wrapper<std::vector<ScoutingCaloJet> >"/>
   <class name="edm::Wrapper<std::vector<ScoutingPFJet> >"/>
   <class name="edm::Wrapper<std::vector<ScoutingParticle> >"/>
@@ -83,4 +88,5 @@
   <class name="edm::Wrapper<std::vector<Run3ScoutingMuon> >"/>
   <class name="edm::Wrapper<std::vector<Run3ScoutingPhoton> >"/>
   <class name="edm::Wrapper<std::vector<Run3ScoutingTrack> >"/> 
+  <class name="edm::Wrapper<std::vector<Run3ScoutingParticleV2> >"/>
 </lcgdict>

@@ -16,3 +16,4 @@
 #include "DataFormats/Scouting/interface/Run3ScoutingPhoton.h"
 #include "DataFormats/Common/interface/Wrapper.h"
 #include "DataFormats/Common/interface/Ref.h"
+#include "DataFormats/Scouting/interface/Run3ScoutingParticleV2.h"

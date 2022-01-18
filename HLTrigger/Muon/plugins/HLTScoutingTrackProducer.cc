@@ -47,6 +47,7 @@ private:
 
   const int mantissaPrecision;
   const double vtxMinDist;
+  const double ptMin;
 };
 
 //
@@ -56,7 +57,8 @@ HLTScoutingTrackProducer::HLTScoutingTrackProducer(const edm::ParameterSet& iCon
     : otherTrackCollection_(consumes<reco::TrackCollection>(iConfig.getParameter<edm::InputTag>("OtherTracks"))),
       vertexCollection_(consumes<reco::VertexCollection>(iConfig.getParameter<edm::InputTag>("vertexCollection"))),
       mantissaPrecision(iConfig.getParameter<int>("mantissaPrecision")),
-      vtxMinDist(iConfig.getParameter<double>("vtxMinDist")) {
+      vtxMinDist(iConfig.getParameter<double>("vtxMinDist")),
+      ptMin(iConfig.getParameter<double>("ptMin")) {
   //register products
   produces<Run3ScoutingTrackCollection>();
 }
@@ -79,6 +81,9 @@ void HLTScoutingTrackProducer::produce(edm::StreamID sid, edm::Event& iEvent, ed
       double min_dist = vtxMinDist;
       int vtxIt = 0;
 
+      if (trk.pt()<ptMin) continue;
+      //if (trk.hitPattern().numberOfValidPixelHits()<4) continue;
+      
       if (iEvent.getByToken(vertexCollection_, vertexCollection)) {
         for (auto& vrt : *vertexCollection) {
           double min_dist_tmp = pow(trk.dz(vrt.position()), 2);  // hltPixelVertices only clustered in Z
@@ -141,6 +146,7 @@ void HLTScoutingTrackProducer::fillDescriptions(edm::ConfigurationDescriptions& 
 
   desc.add<int>("mantissaPrecision", 10)->setComment("default float16, change to 23 for float32");
   desc.add<double>("vtxMinDist", 0.01);
+  desc.add<double>("ptMin", 0.3);
   descriptions.add("hltScoutingTrackProducer", desc);
 }
 
