@@ -212,6 +212,10 @@ void PixelTrackProducerFromSoA::produce(edm::StreamID streamID,
     GlobalVector pp = gp.momentum();
     math::XYZVector mom(pp.x(), pp.y(), pp.z());
 
+    if ( pp.mag2() > 75.0*75.0 ) {
+        mom.SetCoordinates(75.0*(pp.perp()/pp.mag())*cos(pp.phi()),75.0*(pp.perp()/pp.mag())*sin(pp.phi()),75.0*(pp.z()/pp.mag()));
+    }
+
     auto track = std::make_unique<reco::Track>(chi2, ndof, pos, mom, gp.charge(), CurvilinearTrajectoryError(mo));
 
     // bad and edup not supported as fit not present or not reliable
