@@ -35,8 +35,9 @@
 #include "RecoVertex/PrimaryVertexProducer/interface/TrackFilterForPVFindingBase.h"
 #include "RecoVertex/PrimaryVertexProducer/interface/TrackClusterizerInZ.h"
 #include "RecoVertex/PrimaryVertexProducer/interface/DAClusterizerInZ_vect.h"
+#include "RecoVertex/PrimaryVertexProducer/interface/DAClusterizerInZSubCluster_vect.h"
 #include "RecoVertex/PrimaryVertexProducer/interface/DAClusterizerInZT_vect.h"
-#include "RecoVertex/PrimaryVertexProducer/interface/WeightedMeanFitter.h"
+
 #include "RecoVertex/PrimaryVertexProducer/interface/TrackFilterForPVFinding.h"
 #include "RecoVertex/PrimaryVertexProducer/interface/HITrackFilterForPVFinding.h"
 #include "RecoVertex/PrimaryVertexProducer/interface/GapClusterizerInZ.h"
@@ -49,14 +50,17 @@
 #include "RecoVertex/PrimaryVertexProducer/interface/VertexHigherPtSquared.h"
 #include "RecoVertex/VertexTools/interface/VertexCompatibleWithBeam.h"
 #include "DataFormats/Common/interface/ValueMap.h"
+ 
+#include "RecoVertex/LinearizationPointFinders/interface/CrossingPtBasedLinearizationPointFinder.h"
+#include "DataFormats/GeometryVector/interface/GlobalPoint.h"
 //
 // class declaration
 //
 
-class PrimaryVertexProducer : public edm::stream::EDProducer<> {
+class PrimaryVertexProducerDumbFitter : public edm::stream::EDProducer<> {
 public:
-  PrimaryVertexProducer(const edm::ParameterSet&);
-  ~PrimaryVertexProducer() override;
+  PrimaryVertexProducerDumbFitter(const edm::ParameterSet&);
+  ~PrimaryVertexProducerDumbFitter() override;
 
   void produce(edm::Event&, const edm::EventSetup&) override;
 
@@ -95,5 +99,4 @@ private:
   edm::EDGetTokenT<edm::ValueMap<float> > trkTimeResosToken;
 
   bool f4D;
-  bool weightFit;
 };
