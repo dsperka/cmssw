@@ -91,6 +91,7 @@ __global__ void fitterKernel(
 
     for (unsigned int kk = 0; kk < tracks->nTrueTracks; kk++){
       unsigned int itrack = tracks->order(kk);
+      if not(tracks->isGood(itrack)) continue;
       unsigned int ivtxFromTk = tracks->kmin(itrack);
       if (ivtxFromTk == k) {
         //this is a valid track that is associated with this vertex
@@ -152,6 +153,7 @@ __global__ void fitterKernel(
 
       for (unsigned int kk = 0; kk < tracks->nTrueTracks; kk++){
 	unsigned int itrack = tracks->order(kk);
+        if not(tracks->isGood(itrack)) continue;
 	unsigned int ivtxFromTk = tracks->kmin(itrack);
 	if (ivtxFromTk == k) {
 
@@ -238,6 +240,7 @@ __global__ void fitterKernel(
     double dist = 0;
     for (unsigned int kk = 0; kk < tracks->nTrueTracks; kk++){
       unsigned int itrack = tracks->order(kk);
+      if not(tracks->isGood(itrack)) continue;
       unsigned int ivtxFromTk = tracks->kmin(itrack);
       if (ivtxFromTk == k) {
 

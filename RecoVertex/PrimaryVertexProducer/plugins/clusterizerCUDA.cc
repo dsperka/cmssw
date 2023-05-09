@@ -491,7 +491,7 @@ __global__ void overlapTracks(TrackForPV::TrackForPVSoA* tracks, unsigned int bl
              tracks->weight(newNtracks) = tracks->weight(oldTrack);
              tracks->tt_index(newNtracks) = tracks->tt_index(oldTrack);
              tracks->isGood(newNtracks) = true;
-             // end copying
+	     // end copying
              if (newNtracks==0) printf("WTF, newNtracks is 0!\n\n");
              tracks->order(newPos) = newNtracks;
              newPos ++;
@@ -500,6 +500,10 @@ __global__ void overlapTracks(TrackForPV::TrackForPVSoA* tracks, unsigned int bl
     } 
      // if (threadIdx.x == 0 && blockIdx.x == 0) printf("nTrueTracks after overlap: %d\n", newNtracks);
     tracks->nTrueTracks = newNtracks;
+    for (unsigned int itrackO=0; itrackO < tracks->nTrueTracks ; itrackO++){
+        if ((itrackO % blockDim < (unsigned int) (blockDim/2)) && (itrackO > blockDim-1)) tracks->isGood(tracks->order(itrackO)) = false;
+	else  tracks->isGood(tracks->order(itrackO)) = true;
+    }
 }
 
 __global__ void resortVerticesAndAssign(TrackForPV::TrackForPVSoA* tracks, TrackForPV::VertexForPVSoA* vertices, double * beta,clusterParameters params, unsigned int blockdim, unsigned int griddim){
@@ -717,7 +721,7 @@ __global__ void resortVerticesAndAssign(TrackForPV::TrackForPVSoA* tracks, Track
     for (unsigned int itrackO = firstElement; itrackO < tracks->nTrueTracks ; itrackO += gridSize){
       unsigned int itrack = tracks->order(itrackO);
 //    for (unsigned int itrack = firstElement; itrack < ntracks ; itrack+=gridSize){
-//      if (not(tracks->isGood(itrack))) continue;
+      if (not(tracks->isGood(itrack))) continue;
       // printf("%i vtx_range 1\n", threadIdx.x); 
       double zrange     = std::max(params.sel_zrange/ sqrt((*beta) * tracks->dz2(itrack)), zrange_min_);
       // printf("%i vtx_range 1.1, %p\n", threadIdx.x, (void*)&zrange);
@@ -795,7 +799,7 @@ __global__ void resortVerticesAndAssign(TrackForPV::TrackForPVSoA* tracks, Track
 
   for (unsigned int itrackO = firstElement; itrackO < tracks->nTrueTracks; itrackO+=gridSize) {
     unsigned int itrack = tracks->order(itrackO);
-    // if (not(tracks->isGood(i))) continue;
+    if (not(tracks->isGood(itrack))) continue;
     unsigned int kmin = tracks->kmin(itrack);
     unsigned int kmax = tracks->kmax(itrack);
     
@@ -881,13 +885,14 @@ __global__ void verticesAndClusterizeKernel(unsigned int ntracks, TrackForPV::Tr
     for (unsigned int itrackO = 0; itrackO < tracks->nTrueTracks; itrackO+= 1){ 
       // Check if vertex is valid, i.e. count tracks
       unsigned int itrack = tracks->order(itrackO);
+      if (not(tracks->isGood(itrack))) continue; // Remove duplicates
       unsigned int ivtxFromTk = tracks->kmin(itrack);
       if (ivtxFromTk == k){
 	vertices->ntracks(ivertex)++;
 	printf("verticesAndClusterizeKernel: adding track with x,z=%f,%f to vtx. %d. isGood itrack/itrackO? %d/%d \n",tracks->x(itrack),tracks->z(itrack),ivertex,tracks->isGood(itrack),tracks->isGood(itrackO));
       }
     }
-    if (vertices->ntracks(ivertex) < 1){
+    if (vertices->ntracks(ivertex) < 2){
       vertices->isGood(ivertex) = false; // No longer needed
       continue; //Skip vertex if it has no tracks
     }
@@ -1039,6 +1044,7 @@ std::vector<TransientVertex> vertices(unsigned int ntracks, TrackForPV::TrackFor
     
   for (unsigned int itrackO = 0; itrackO < tracks->nTrueTracks; itrackO++){
         unsigned int itrack = tracks->order(itrackO);
+	if (not(tracks->isGood(itrack))) continue; // I.e. a repeated one we skip
         unsigned int ivtx = tracks->kmin(itrack);
         if (ivtx < vertices->stride()){
           vtx_track_indices[ivtx].push_back(tracks->tt_index(itrack));
