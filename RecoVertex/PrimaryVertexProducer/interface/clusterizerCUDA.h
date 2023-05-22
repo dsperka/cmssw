@@ -97,7 +97,7 @@ namespace clusterizerCUDA {
  //     }
       // First, update vertex stuff
 //      if (not(tracks->isGood(itrack))) continue;
-      double botrack_dz2 = -(*beta) * tracks->dz2(itrack);
+      double botrack_dz2 = -(*beta) * tracks->oneoverdz2(itrack);
       tracks->sum_Z(itrack) = Z_init;
       // First, let's get the partition function per track
 //      //  printf("Track %i, kmin %i, kmax %i\n", itrack, tracks->kmin(itrack), tracks->kmax(itrack));
@@ -125,7 +125,7 @@ namespace clusterizerCUDA {
             //if (vertices->order(ivertexO) == -1) continue;
           unsigned int ivertex = vertices->order(ivertexO);
           tracks->vert_se(itrack)(ivertex) = tracks->vert_exp(itrack)(ivertex) * sumw;
-          double w                   = vertices->rho(ivertex) * tracks->vert_exp(itrack)(ivertex) * sumw * tracks->dz2(itrack);
+          double w                   = vertices->rho(ivertex) * tracks->vert_exp(itrack)(ivertex) * sumw * tracks->oneoverdz2(itrack);
           tracks->vert_sw(itrack)(ivertex)  = w;
           tracks->vert_swz(itrack)(ivertex) = w * tracks->z(itrack);
           if (updateTc) tracks->vert_swE(itrack)(ivertex) = -w * tracks->vert_exparg(itrack)(ivertex)/(*beta); // Only need it when changing the Tc
@@ -243,7 +243,7 @@ namespace clusterizerCUDA {
 //    for (unsigned int itrack = firstElement; itrack < ntracks ; itrack+=gridSize){
 //      if (not(tracks->isGood(itrack))) continue;
       // printf("%i vtx_range 1\n", threadIdx.x); 
-      double zrange     = std::max(params.sel_zrange/ sqrt((*beta) * tracks->dz2(itrack)), zrange_min_);
+      double zrange     = std::max(params.sel_zrange/ sqrt((*beta) * tracks->oneoverdz2(itrack)), zrange_min_);
       // printf("%i vtx_range 1.1, %p\n", threadIdx.x, (void*)&zrange);
       double zmin       = tracks->z(itrack) - zrange;
       // printf("%i vtx_range 1.2, %p\n", threadIdx.x, (void*)&zmin);
@@ -680,14 +680,14 @@ if (threadIdx.x == 0){
             double tl = tracks->z(itrack) < vertices->z(ivertex) ? 1. : 0.;
             double tr = 1. - tl;
             // soften it, especially at low T
-            double arg = (tracks->z(itrack) - vertices->z(ivertex)) * sqrt((*beta) * tracks->dz2(itrack));
+            double arg = (tracks->z(itrack) - vertices->z(ivertex)) * sqrt((*beta) * tracks->oneoverdz2(itrack));
             if (std::fabs(arg) < 20) {
               double t = exp(-arg);
               tl = t / (t + 1.);
               tr = 1 / (t + 1.);
             }
-            double p = vertices->rho(ivertex) * tracks->weight(itrack) * exp(-(*beta) * (tracks->z(itrack)-vertices->z(ivertex))*(tracks->z(itrack)-vertices->z(ivertex))* tracks->dz2(itrack))/ tracks->sum_Z(itrack);
-            double w = p * tracks->dz2(itrack);
+            double p = vertices->rho(ivertex) * tracks->weight(itrack) * exp(-(*beta) * (tracks->z(itrack)-vertices->z(ivertex))*(tracks->z(itrack)-vertices->z(ivertex))* tracks->oneoverdz2(itrack))/ tracks->sum_Z(itrack);
+            double w = p * tracks->oneoverdz2(itrack);
             atomicAdd_block(&p1, p*tl);
             atomicAdd_block(&z1, w*tl*tracks->z(itrack));
             atomicAdd_block(&w1, w*tl);
@@ -871,7 +871,7 @@ if (threadIdx.x == 0){
             */
             unsigned int ivertex = vertices->order(ivertexO);
             double ppcut = params.uniquetrkweight * vertices->rho(ivertex) / (vertices->rho(ivertex)+rhoconst); 
-            double track_vertex_aux1 = exp(-(*beta)*tracks->dz2(itrack) * ( (tracks->z(itrack)-vertices->z(ivertex))*(tracks->z(itrack)-vertices->z(ivertex)) )); // TODO: either this or std::pow?
+            double track_vertex_aux1 = exp(-(*beta)*tracks->oneoverdz2(itrack) * ( (tracks->z(itrack)-vertices->z(ivertex))*(tracks->z(itrack)-vertices->z(ivertex)) )); // TODO: either this or std::pow?
             double p = vertices->rho(ivertex)*track_vertex_aux1*track_aux1;
             atomicAdd_block(&vertices->aux1(ivertex) , p); //psump
             if (p>ppcut) {

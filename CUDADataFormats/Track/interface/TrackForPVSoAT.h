@@ -24,7 +24,8 @@ public:
   double min_z;
   eigenSoA::ScalarSoA<double, S> significance;
   eigenSoA::ScalarSoA<double, S> dxy2;
-  eigenSoA::ScalarSoA<double, S> dz2; // used in clusterizer
+  eigenSoA::ScalarSoA<double, S> dz2; 
+  eigenSoA::ScalarSoA<double, S> oneoverdz2; // used in clusterizer
   eigenSoA::ScalarSoA<double, S> z;
   eigenSoA::ScalarSoA<double, S> weight;
   eigenSoA::ScalarSoA<double, S> sum_Z;

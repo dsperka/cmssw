@@ -20,6 +20,11 @@
 //#include "HeterogeneousCore/CUDAUtilities/interface/radixSort.h"
 #include <math.h>
 
+#define DEBUG
+#ifdef DEBUG
+#define DEBUGLEVEL -5 // -5 means: debug the same way as CPU; Final value TBD
+#endif
+
 using Vector512d = Eigen::Matrix<double, 1024, 1>;
 
 namespace fitterCUDA {
@@ -55,7 +60,9 @@ __global__ void fitterKernel(
   for (unsigned int k = firstElement; k < vertices->nTrueVertex(0); k += gridSize) {
     unsigned int ivertex = vertices->order(k);
     if (!vertices->isGood(ivertex)) continue; //skip if not good
-
+#ifdef DEBUG
+    printf("start gpu fitter k=%d,ivtx=%d,ntracks=%d,z=%.10f \n",k,ivertex,vertices->ntracks(ivertex),vertices->z(ivertex));
+#endif
     /*
 		WEIGHTEDMEANFITTER ORDER
 
@@ -85,22 +92,23 @@ __global__ void fitterKernel(
     double x=0., y=0., z=0.;
     double s_wx=0., s_wz=0.;
     double s2_wx=0., s2_wz=0.;
-   double wx=0., wz=0., chi2=0.;
+    double wx=0., wz=0., chi2=0.;
     double wy=0., s_wy=0., s2_wy=0.;
     vertices->ndof(ivertex) = 0; 
 
     for (unsigned int kk = 0; kk < tracks->nTrueTracks; kk++){
       unsigned int itrack = tracks->order(kk);
-      if not(tracks->isGood(itrack)) continue;
+      if (not(tracks->isGood(itrack))) continue;
       unsigned int ivtxFromTk = tracks->kmin(itrack);
-      if (ivtxFromTk == k) {
+      //if (ivtxFromTk == k) {
+      if (ivtxFromTk == ivertex) {
         //this is a valid track that is associated with this vertex
         track_ids[track_id_counter] = itrack;
         track_id_counter++;
 
         wx = (tracks->dxy2(itrack) <= precision2) ? 1./(precision2) : 1./tracks->dxy2(itrack);
         wy = (tracks->dxy2(itrack) <= precision2) ? 1./(precision2) : 1./tracks->dxy2(itrack);
-        wz = (1./tracks->dz2(itrack) <= precision2) ? 1./(precision2) : tracks->dz2(itrack);
+        wz = (tracks->dz2(itrack) <= precision2) ? 1./(precision2) : 1./tracks->dz2(itrack);
 
         x += tracks->x(itrack) * wx; 
         y += tracks->y(itrack) * wy;
@@ -110,22 +118,38 @@ __global__ void fitterKernel(
         s_wy += wy;
         s_wz += wz;
 
-	printf("gpu fitter x,dx2,wx,z,dz2,wz %f,%f,%f,%f,%f,%f \n",tracks->x(itrack),tracks->dxy2(itrack),wx,tracks->z(itrack),(1./tracks->dz2(itrack)),wz);
+#ifdef DEBUG
+	printf("gpu fitter x,dx2,wx,z,dz2,wz %.10f,%.10f,%.10f,%.10f,%.10f,%.10f \n",tracks->x(itrack),tracks->dxy2(itrack),wx,tracks->z(itrack),tracks->dz2(itrack),wz);
+#endif
  
       }
     }
 
     vertices->track_id(ivertex) = track_ids;
 
-    wx = beamspot.cxx <=  precision ? 1./precision2 : 1. / (beamspot.cxx*beamspot.cxx);
-    wy = beamspot.cyy <=  precision ? 1./precision2 : 1. / (beamspot.cyy*beamspot.cyy);
+    if (algorithm.useBeamConstraint) {
 
-    x += beamspot.x * wx;
-    y += beamspot.y * wy;
+#ifdef DEBUG
+	printf("gpu fitter using beamspot x,cxx,y,cyy %.10f,%.10f,%.10f,%.10f \n",beamspot.x,beamspot.cxx,beamspot.y,beamspot.cyy);
+#endif
 
-    x /= (s_wx + wx);
-    y /= (s_wy + wy);
-    z /= s_wz;
+      wx = beamspot.cxx <=  precision ? 1./precision2 : 1. / (beamspot.cxx*beamspot.cxx);
+      wy = beamspot.cyy <=  precision ? 1./precision2 : 1. / (beamspot.cyy*beamspot.cyy);
+    
+      x += beamspot.x * wx;
+      y += beamspot.y * wy;
+      
+      x /= (s_wx + wx);
+      y /= (s_wy + wy);
+      z /= s_wz;
+
+    } else {
+
+      x /= s_wx;
+      y /= s_wy;
+      z /= s_wz;
+
+    }
 
     double old_x, old_y, old_z;
 
@@ -140,6 +164,10 @@ __global__ void fitterKernel(
     err_y = 1. / s_wy;
     err_z = 1. / s_wz;
 
+#ifdef DEBUG
+    printf("gpu fitter x,err_x,z,err_z %.10f,%.10f,%.10f,%.10f \n",x,err_x,z,err_z);
+#endif
+
     while ((niter++) < 2){
       old_x = x;
       old_y = y;
@@ -152,27 +180,54 @@ __global__ void fitterKernel(
       vertices->ndof(ivertex) = 0;
 
       for (unsigned int kk = 0; kk < tracks->nTrueTracks; kk++){
+
 	unsigned int itrack = tracks->order(kk);
-        if not(tracks->isGood(itrack)) continue;
+        if (not(tracks->isGood(itrack))) continue;
+
 	unsigned int ivtxFromTk = tracks->kmin(itrack);
-	if (ivtxFromTk == k) {
+	if (ivtxFromTk == ivertex) {
+	  
+#ifdef DEBUG
+	  printf("gpu fitter vx,px,vertexx %.10f,%.10f,%.10f \n",tracks->x(itrack),tracks->px(itrack),old_x);
+#endif
+
+	  double ox = tracks->x(itrack);
+	  double oy = tracks->y(itrack);
+	  double oz = tracks->z(itrack);
+	  
+	  double vx = tracks->px(itrack);
+	  double vy = tracks->py(itrack);
+	  double vz = tracks->pz(itrack);
+
+	  double opx = old_x - ox;
+	  double opy = old_y - oy;
+	  double opz = old_z - oz;
+
+	  double vnorm2 = (vx*vx + vy*vy + vz*vz);
+	  double t = (vx * opx + vy * opy + vz * opz) / (vnorm2);
+
+	  double tx = ox + t * vx;
+	  double ty = oy + t * vy;
+	  double tz = oz + t * vz;
 
 	  ////WEIGHTING
 	  double wx = (tracks->dxy2(itrack) <= precision2) ? precision2 : tracks->dxy2(itrack);
 	  double wy = (tracks->dxy2(itrack) <= precision2) ? precision2 : tracks->dxy2(itrack);
-	  double wz = (1./tracks->dz2(itrack) <= precision2) ? precision2 : 1./tracks->dz2(itrack);
+	  double wz = (tracks->dz2(itrack) <= precision2) ? precision2 : tracks->dz2(itrack);
 	  
-	  double distx = pow(tracks->x(itrack) - old_x, 2) / (wx + err_x);
-	  double disty = pow(tracks->y(itrack) - old_y, 2) / (wy + err_y);
-	  double distz = pow(tracks->z(itrack) - old_z, 2) / (wz + err_z);
+	  double distx = pow(tx - old_x, 2) / (wx + err_x);
+	  double disty = pow(ty - old_y, 2) / (wy + err_y);
+	  double distz = pow(tz - old_z, 2) / (wz + err_z);
+
+#ifdef DEBUG
+	  printf("gpu fitter niter,x,dx2,wx,z,dz2,wz %d,%.10f,%.10f,%.10f,%.10f,%.10f,%.10f \n",niter,tx,tracks->dxy2(itrack),wx,tz,tracks->dz2(itrack),wz);
+#endif
 
 	  xpull = 0;
 	  if (distz < mu2 && distx < mu2 && disty < mu2) {
 	    xpull = 1.;
 	    vertices->ndof(ivertex) += 1; 
-	    //vertices->ntracks(ivertex) += 1; already given by clusterizer
 	    track_weights[track_weight_counter] = xpull;
-	    printf("fitterCUDA: adding track with z=%f to vtx. %d \n",tracks->z(itrack),k);
 	  } else {
 	    track_weights[track_weight_counter] = 0;
 	  }
@@ -181,12 +236,11 @@ __global__ void fitterKernel(
 
 	  wx = xpull / wx;
 	  wy = xpull / wy;
-
 	  wz = xpull / wz;
 	  
-	  x += tracks->x(itrack) * wx;
-	  y += tracks->y(itrack) * wy;
-	  z += tracks->z(itrack) * wz;
+	  x += tx * wx;
+	  y += ty * wy;
+	  z += tz * wz;
 	  
 	  s_wx += wx;
 	  s_wy += wy;
@@ -198,17 +252,20 @@ __global__ void fitterKernel(
 	}
       }
 
-      // WHY IS IT DIFFERENT THAN THE OTHER TIME AROUND???
-      wx = beamspot.cxx <=  precision2 ? 1./precision2 : 1. / (beamspot.cxx);
-      wy = beamspot.cyy <=  precision2 ? 1./precision2 : 1. / (beamspot.cyy);
+      if (algorithm.useBeamConstraint) {
+	// WHY IS IT DIFFERENT THAN THE OTHER TIME AROUND???
 
-      x += beamspot.x * wx;
-      y += beamspot.y * wy;
+	wx = beamspot.cxx <=  precision2 ? 1./precision2 : 1. / (beamspot.cxx);
+	wy = beamspot.cyy <=  precision2 ? 1./precision2 : 1. / (beamspot.cyy);
 
-      s_wx  += wx;
-      s2_wx += wx;
-      s_wy  += wy;
-      s2_wy += wy;
+	x += beamspot.x * wx;
+	y += beamspot.y * wy;
+
+	s_wx  += wx;
+	s2_wx += wx;
+	s_wy  += wy;
+	s2_wy += wy;
+      }
 
       x /= s_wx;
       y /= s_wy;
@@ -227,10 +284,15 @@ __global__ void fitterKernel(
     vertices->y(ivertex) = y;
     vertices->z(ivertex) = z;
 
-    vertices->errx(ivertex) = err_x * pow(corr_x_bs,2);
-    vertices->erry(ivertex) = err_y * pow(corr_x_bs,2);
-    vertices->errz(ivertex) = err_z * pow(corr_z,2);
-
+    if (algorithm.useBeamConstraint) {
+      vertices->errx(ivertex) = err_x * pow(corr_x_bs,2);
+      vertices->erry(ivertex) = err_y * pow(corr_x_bs,2);
+      vertices->errz(ivertex) = err_z * pow(corr_z,2);
+    } else {
+      vertices->errx(ivertex) = err_x * pow(corr_x,2);
+      vertices->erry(ivertex) = err_y * pow(corr_x,2);
+      vertices->errz(ivertex) = err_z * pow(corr_z,2);
+    }
     vertices->track_weight(ivertex) = track_weights;
 
     //----------------------------------chi2 loop-------------------------------------
@@ -240,16 +302,14 @@ __global__ void fitterKernel(
     double dist = 0;
     for (unsigned int kk = 0; kk < tracks->nTrueTracks; kk++){
       unsigned int itrack = tracks->order(kk);
-      if not(tracks->isGood(itrack)) continue;
+      if (not(tracks->isGood(itrack))) continue;
+
       unsigned int ivtxFromTk = tracks->kmin(itrack);
-      if (ivtxFromTk == k) {
+      if (ivtxFromTk == ivertex) {
 
         double wx = (tracks->dxy2(itrack) <= precision) ? precision : tracks->dxy2(itrack);
         double wy = (tracks->dxy2(itrack) <= precision) ? precision : tracks->dxy2(itrack);
-        double wz = (1./tracks->dz2(itrack) <= precision) ? precision : 1./tracks->dz2(itrack);
-
-        //printf("wx,wy,wz: %f, %f, %f\n", wx, wy, wz);
-        //printf("errx,erry,errz: %f, %f, %f\n", vertices->errx(ivertex), vertices->erry(ivertex), vertices->errz(ivertex));
+        double wz = (tracks->dz2(itrack) <= precision) ? precision : tracks->dz2(itrack);
 
         dist =        pow(tracks->x(itrack) - vertices->x(ivertex), 2) /
                       (wx + vertices->errx(ivertex));
@@ -257,7 +317,7 @@ __global__ void fitterKernel(
                       (wy + vertices->erry(ivertex));
         dist +=       pow(tracks->z(itrack) - vertices->z(ivertex), 2) /
                       (wz + vertices->errz(ivertex));
-        //printf("%f\n", dist);
+
         chi2 += dist;
       }
     }
@@ -265,15 +325,9 @@ __global__ void fitterKernel(
     vertices->chi2(ivertex) = chi2; //requirement
     //weight tracks by chi2?
 
-    printf("end of fitter: %d, %f, %f, %f, %d, %f, %f\n",
-      ivertex,
-      vertices->x(ivertex),
-      vertices->y(ivertex),
-      vertices->z(ivertex),
-      vertices->ntracks(ivertex),
-      vertices->errz(ivertex),
-      vertices->chi2(ivertex)
-    );
+#ifdef DEBUG
+    printf("end of gpu fitter x,y,z %.10f,%.10f,%.10f \n",vertices->x(ivertex),vertices->y(ivertex),vertices->z(ivertex));
+#endif
 
   }
 }

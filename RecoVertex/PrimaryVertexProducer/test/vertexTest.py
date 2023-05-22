@@ -155,13 +155,14 @@ if options.verbose:
 
 ##############################CHANGED
 process.vertex.vertexCollections = cms.VPSet(
-     [#cms.PSet(label=cms.string(""),
-      #         algorithm=cms.string("WeightedMeanFitter"),
-      #         chi2cutoff = cms.double(2.5),
-      #         minNdof=cms.double(0.0),
-      #         useBeamConstraint = cms.bool(False),
-      #         maxDistanceToBeam = cms.double(1.0)
-      #         ),
+     [cms.PSet(label=cms.string(""),
+               algorithm=cms.string("WeightedMeanFitter"),
+               chi2cutoff = cms.double(2.5),
+               minNdof=cms.double(0.0),
+               useBeamConstraint = cms.bool(False),
+#               useBeamConstraint = cms.bool(True), # to be like the GPU version
+               maxDistanceToBeam = cms.double(1.0)
+               ),
       cms.PSet(label=cms.string("WithBS"),
                algorithm = cms.string('WeightedMeanFitter'),
                chi2cutoff = cms.double(2.5),
@@ -180,7 +181,7 @@ if options.both:
     suff = "gpuVScpu"
 
 process.output = cms.OutputModule("PoolOutputModule",
-    fileName= cms.untracked.string("file:test_gpu.root"),
+    fileName= cms.untracked.string("file:test_"+suff+".root"),
     outputCommands = cms.untracked.vstring(
                                 'drop *_*_*_*',
                                 'keep *_demo_*_*'
@@ -220,8 +221,8 @@ if options.timing:
     process.consume_step = cms.EndPath(process.consumer)
     process.schedule.append(process.consume_step)
 
-else:
-    process.schedule = cms.Schedule(process.vertexing_step)
+#else:
+#    process.schedule = cms.Schedule(process.vertexing_step)
 
 if options.both:
 

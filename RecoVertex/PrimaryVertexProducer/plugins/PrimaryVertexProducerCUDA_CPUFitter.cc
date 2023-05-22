@@ -302,11 +302,11 @@ void PrimaryVertexProducerCUDA_CPUFitter::produce(edm::Event& iEvent, const edm:
         }
         else{ // Get dz2 for the track
           // dz2 is zerror^2 + (bx*px + by*py)^2*pz^2/(pt^4) + vertex_size^2
-          dz2 = dz2 
+          double oneoverdz2 = dz2 
                          + (std::pow(bx*pxAtPCA,2)+ std::pow(by*pyAtPCA,2))* std::pow(pzAtPCA,2)/(std::pow(pt2AtPCA,2)) 
                          + std::pow(fParams.vertexSize,2); // TODO:: For sure ways to optimize this
-          dz2 = 1./dz2;
-          if (not(std::isfinite(dz2)) || dz2< std::numeric_limits<double>::min()){ // Bad track dz2 is taken out
+          oneoverdz2 = 1./oneoverdz2;
+          if (not(std::isfinite(oneoverdz2)) || oneoverdz2< std::numeric_limits<double>::min()){ // Bad track dz2 is taken out
             isGood = false;
             weight = 0;
             continue;
@@ -335,6 +335,7 @@ void PrimaryVertexProducerCUDA_CPUFitter::produce(edm::Event& iEvent, const edm:
             CPUtracksObject->weight(nTrueTracks) = weight;
             CPUtracksObject->tt_index(nTrueTracks) = idx;
             CPUtracksObject->dz2(nTrueTracks) = dz2;
+            CPUtracksObject->oneoverdz2(nTrueTracks) = oneoverdz2;
             CPUtracksObject->dxy2(nTrueTracks) = dxy2;
             CPUtracksObject->order(nTrueTracks) = nTrueTracks;
             CPUtracksObject->sum_Z(nTrueTracks) = 0;
@@ -351,7 +352,7 @@ void PrimaryVertexProducerCUDA_CPUFitter::produce(edm::Event& iEvent, const edm:
       }
   }
   CPUtracksObject->nTrueTracks = nTrueTracks;
-  std::cout << "nTrueTracks in producer: " << nTrueTracks << std::endl;
+  if (fVerbose) std::cout << "nTrueTracks in producer: " << nTrueTracks << std::endl;
   
   (*CPUosumtkwtObject) = (*CPUosumtkwtObject) > 0 ? 1./(*CPUosumtkwtObject) : 0.; 
 
@@ -457,14 +458,14 @@ void PrimaryVertexProducerCUDA_CPUFitter::produce(edm::Event& iEvent, const edm:
           v = algorithm->fitter->vertex(*iclus);
         }  // else: no fit ==> v.isValid()=False
       } else if (weightFit) {
-        std::vector<std::pair<GlobalPoint, GlobalPoint>> points;
+        std::vector<std::pair<GlobalPointDouble, GlobalPointDouble>> points;
         if (algorithm->useBeamConstraint && validBS && (iclus->size() > 1)) {
           for (const auto& itrack : *iclus) {
-            GlobalPoint p = itrack.stateAtBeamLine().trackStateAtPCA().position();
-            GlobalPoint err(itrack.stateAtBeamLine().transverseImpactParameter().error(),
+            GlobalPointDouble p = itrack.stateAtBeamLine().trackStateAtPCA().position();
+            GlobalPointDouble err(itrack.stateAtBeamLine().transverseImpactParameter().error(),
                             itrack.stateAtBeamLine().transverseImpactParameter().error(),
                             itrack.track().dzError());
-            std::pair<GlobalPoint, GlobalPoint> p2(p, err);
+            std::pair<GlobalPointDouble, GlobalPointDouble> p2(p, err);
             points.push_back(p2);
           }
 
@@ -473,9 +474,9 @@ void PrimaryVertexProducerCUDA_CPUFitter::produce(edm::Event& iEvent, const edm:
             pvs.push_back(v);
         } else if (!(algorithm->useBeamConstraint) && (iclus->size() > 1)) {
           for (const auto& itrack : *iclus) {
-            GlobalPoint p = itrack.impactPointState().globalPosition();
-            GlobalPoint err(itrack.track().dxyError(), itrack.track().dxyError(), itrack.track().dzError());
-            std::pair<GlobalPoint, GlobalPoint> p2(p, err);
+            GlobalPointDouble p = itrack.impactPointState().globalPosition();
+            GlobalPointDouble err(itrack.track().dxyError(), itrack.track().dxyError(), itrack.track().dzError());
+            std::pair<GlobalPointDouble, GlobalPointDouble> p2(p, err);
             points.push_back(p2);
           }
 

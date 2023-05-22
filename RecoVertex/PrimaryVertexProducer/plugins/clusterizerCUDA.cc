@@ -78,8 +78,8 @@ __device__ __forceinline__ void getBeta0Kernel(unsigned int ntracks, TrackForPV:
       unsigned int itrack = tracks->order(itrackO);
       //if (not(tracks->isGood(itrack))) continue;
       //printf("Track %i is Good, adding stuff\n", itrack);
-      tracks->aux1(itrack)  = tracks->weight(itrack)*tracks->dz2(itrack); // Will be sumw
-      tracks->aux2(itrack)  = tracks->weight(itrack)*tracks->dz2(itrack)*tracks->z(itrack); // Will be sumwz
+      tracks->aux1(itrack)  = tracks->weight(itrack)*tracks->oneoverdz2(itrack); // Will be sumw
+      tracks->aux2(itrack)  = tracks->weight(itrack)*tracks->oneoverdz2(itrack)*tracks->z(itrack); // Will be sumwz
     }
     __syncthreads();
     //if (0 == threadIdx.x){ // Serialized code. TODO:: Test atomicAdd instead, or better even a syncable sum 
@@ -106,7 +106,7 @@ __device__ __forceinline__ void getBeta0Kernel(unsigned int ntracks, TrackForPV:
       unsigned int itrack = tracks->order(itrackO);
 //    for (unsigned int itrack = firstElement; itrack < ntracks ; itrack += gridSize){
 //      if (not(tracks->isGood(itrack))) continue;
-      tracks->aux2(itrack) = tracks->aux1(itrack)*(vertices->z(maxVerticesPerBlock*blockIdx.x) - tracks->z(itrack) )*(vertices->z(maxVerticesPerBlock*blockIdx.x) - tracks->z(itrack))*tracks->dz2(itrack);
+      tracks->aux2(itrack) = tracks->aux1(itrack)*(vertices->z(maxVerticesPerBlock*blockIdx.x) - tracks->z(itrack) )*(vertices->z(maxVerticesPerBlock*blockIdx.x) - tracks->z(itrack))*tracks->oneoverdz2(itrack);
     }
     __syncthreads();
     __shared__  double a;
@@ -473,7 +473,7 @@ __global__ void overlapTracks(TrackForPV::TrackForPVSoA* tracks, unsigned int bl
         
         for (unsigned int i = begin; i< end; i++){
              if (newNtracks >= tracks->stride()) {
-                if (threadIdx.x == 0 && blockIdx.x == 0) printf("nTrueTracks after overlap: %d\n", newNtracks);
+	        //if (threadIdx.x == 0 && blockIdx.x == 0) printf("nTrueTracks after overlap: %d\n", newNtracks);
                 tracks->nTrueTracks = newNtracks;
                 return;
              }
@@ -486,7 +486,7 @@ __global__ void overlapTracks(TrackForPV::TrackForPVSoA* tracks, unsigned int bl
              
              unsigned int oldTrack = tracks->order(i);
              tracks->significance(newNtracks) = tracks->significance(oldTrack);
-             tracks->dz2(newNtracks) = tracks->dz2(oldTrack);
+             tracks->oneoverdz2(newNtracks) = tracks->oneoverdz2(oldTrack);
              tracks->z(newNtracks) = tracks->z(oldTrack);
              tracks->weight(newNtracks) = tracks->weight(oldTrack);
              tracks->tt_index(newNtracks) = tracks->tt_index(oldTrack);
@@ -723,7 +723,7 @@ __global__ void resortVerticesAndAssign(TrackForPV::TrackForPVSoA* tracks, Track
 //    for (unsigned int itrack = firstElement; itrack < ntracks ; itrack+=gridSize){
       if (not(tracks->isGood(itrack))) continue;
       // printf("%i vtx_range 1\n", threadIdx.x); 
-      double zrange     = std::max(params.sel_zrange/ sqrt((*beta) * tracks->dz2(itrack)), zrange_min_);
+      double zrange     = std::max(params.sel_zrange/ sqrt((*beta) * tracks->oneoverdz2(itrack)), zrange_min_);
       // printf("%i vtx_range 1.1, %p\n", threadIdx.x, (void*)&zrange);
       double zmin       = tracks->z(itrack) - zrange;
       // printf("%i vtx_range 1.2, %p\n", threadIdx.x, (void*)&zmin);
@@ -811,13 +811,13 @@ __global__ void resortVerticesAndAssign(TrackForPV::TrackForPVSoA* tracks, Track
     unsigned int iMax = 10000; 
     double sum_Z = z_sum_init;
     for (auto k = kmin; k < kmax; k++) {
-      double v_exp = exp(-(*beta) * std::pow( tracks->z(itrack) - vertices->z(vertices->order(k)), 2) * tracks->dz2(itrack)) ;
+      double v_exp = exp(-(*beta) * std::pow( tracks->z(itrack) - vertices->z(vertices->order(k)), 2) * tracks->oneoverdz2(itrack)) ;
       sum_Z += vertices->rho(vertices->order(k)) * v_exp;
       //sum_Z += v_exp;
     }
     double invZ = sum_Z > 1e-100 ? 1. / sum_Z : 0.0;
     for (auto k = kmin; k < kmax; k++) {
-      float v_exp = exp(-(*beta) * std::pow( tracks->z(itrack) - vertices->z(vertices->order(k)), 2) * tracks->dz2(itrack)) ;
+      float v_exp = exp(-(*beta) * std::pow( tracks->z(itrack) - vertices->z(vertices->order(k)), 2) * tracks->oneoverdz2(itrack)) ;
       float p = vertices->rho(vertices->order(k)) * v_exp * invZ;
       //printf("Track %i, kmin %i, kmax %i, k %i, p %1.10f \n", itrack, kmin, kmax,k,p);
       //float p = v_exp * invZ; 
@@ -836,7 +836,7 @@ __global__ void resortVerticesAndAssign(TrackForPV::TrackForPVSoA* tracks, Track
 //    double sum_Z = z_sum_init;
 //
 //    for (auto k = kmin; k < kmax; k++) {
-//      vertices->exp(ivertex) = exp(-(*beta) * std::pow( tracks->z(i) - orderedZ[k], 2) * tracks->dz2(i)) ;
+//      vertices->exp(ivertex) = exp(-(*beta) * std::pow( tracks->z(i) - orderedZ[k], 2) * tracks->oneoverdz2(i)) ;
 //    }
 //
 //    //local_exp_list_range(y.exp_arg, y.exp, kmin, kmax);
@@ -889,7 +889,7 @@ __global__ void verticesAndClusterizeKernel(unsigned int ntracks, TrackForPV::Tr
       unsigned int ivtxFromTk = tracks->kmin(itrack);
       if (ivtxFromTk == k){
 	vertices->ntracks(ivertex)++;
-	printf("verticesAndClusterizeKernel: adding track with x,z=%f,%f to vtx. %d. isGood itrack/itrackO? %d/%d \n",tracks->x(itrack),tracks->z(itrack),ivertex,tracks->isGood(itrack),tracks->isGood(itrackO));
+	//printf("verticesAndClusterizeKernel: adding track with x,z=%f,%f to vtx. %d. isGood itrack/itrackO? %d/%d \n",tracks->x(itrack),tracks->z(itrack),ivertex,tracks->isGood(itrack),tracks->isGood(itrackO));
       }
     }
     if (vertices->ntracks(ivertex) < 2){
@@ -1039,7 +1039,9 @@ std::vector<TransientVertex> vertices(unsigned int ntracks, TrackForPV::TrackFor
   }
   */
   std::vector<TransientVertex> clusters;
+#ifdef DEBUG
   std::cout << "\n\nFound n vertices: " << vertices->nTrueVertex(0) << std::endl;
+#endif
   std::vector<std::vector<unsigned int> > vtx_track_indices(vertices->nTrueVertex(0));
     
   for (unsigned int itrackO = 0; itrackO < tracks->nTrueTracks; itrackO++){
@@ -1048,7 +1050,9 @@ std::vector<TransientVertex> vertices(unsigned int ntracks, TrackForPV::TrackFor
         unsigned int ivtx = tracks->kmin(itrack);
         if (ivtx < vertices->stride()){
           vtx_track_indices[ivtx].push_back(tracks->tt_index(itrack));
+#ifdef DEBUG
 	  std::cout<<"vertices: adding track with x,z="<<tracks->x(itrack)<<","<<tracks->z(itrack)<<" to vtx. "<<ivtx<<std::endl;
+#endif
         }
         else{
 //            std::cout << "rejecting vertex " << ivtx << vertices->z(vertices->order(ivtx))<< std::endl;
@@ -1069,7 +1073,7 @@ std::vector<TransientVertex> vertices(unsigned int ntracks, TrackForPV::TrackFor
     const auto kmax = tracks->kmax(i);
     for (auto k = kmin; k < kmax; k++) {
       unsigned int ivertex = vertices->order(k);
-      vertices->exp(ivertex) = exp(-(*beta) * std::pow( tracks->z(i) - vertices->z(ivertex), 2) * tracks->dz2(i)) ;
+      vertices->exp(ivertex) = exp(-(*beta) * std::pow( tracks->z(i) - vertices->z(ivertex), 2) * tracks->oneoverdz2(i)) ;
     }
 
     //local_exp_list_range(y.exp_arg, y.exp, kmin, kmax);

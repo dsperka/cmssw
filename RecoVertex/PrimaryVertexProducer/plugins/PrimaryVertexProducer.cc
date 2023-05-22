@@ -241,12 +241,12 @@ void PrimaryVertexProducer::produce(edm::Event& iEvent, const edm::EventSetup& i
       }// else: no fit ==> v.isValid()=False
       }else if(weightFit)
       {
-        std::vector<std::pair<GlobalPoint, GlobalPoint>> points;
+        std::vector<std::pair<GlobalPointDouble, GlobalPointDouble>> points;
         if (algorithm->useBeamConstraint && validBS && (iclus->size() > 1)) {
             for (const auto& itrack : *iclus){
-                   GlobalPoint p =  itrack.stateAtBeamLine().trackStateAtPCA().position();
-                   GlobalPoint err(itrack.stateAtBeamLine().transverseImpactParameter().error(), itrack.stateAtBeamLine().transverseImpactParameter().error(), itrack.track().dzError());
-                   std::pair<GlobalPoint, GlobalPoint> p2(p, err);
+                   GlobalPointDouble p =  itrack.stateAtBeamLine().trackStateAtPCA().position();
+                   GlobalPointDouble err(itrack.stateAtBeamLine().transverseImpactParameter().error(), itrack.stateAtBeamLine().transverseImpactParameter().error(), itrack.track().dzError());
+                   std::pair<GlobalPointDouble, GlobalPointDouble> p2(p, err);
                    points.push_back(p2);
             }
             v = WeightedMeanFitter::weightedMeanOutlierRejectionBeamSpot(points, *iclus, beamSpot);
@@ -255,9 +255,9 @@ void PrimaryVertexProducer::produce(edm::Event& iEvent, const edm::EventSetup& i
         }
         else if (!(algorithm->useBeamConstraint) && (iclus->size() > 1)) {
            for (const auto& itrack : *iclus){
-                   GlobalPoint p = itrack.impactPointState().globalPosition();
-                   GlobalPoint err(itrack.track().dxyError(), itrack.track().dxyError(), itrack.track().dzError());
-                   std::pair<GlobalPoint, GlobalPoint> p2(p, err);
+                   GlobalPointDouble p = itrack.impactPointState().globalPosition();
+                   GlobalPointDouble err(itrack.track().dxyError(), itrack.track().dxyError(), itrack.track().dzError());
+                   std::pair<GlobalPointDouble, GlobalPointDouble> p2(p, err);
                    points.push_back(p2);
            }
            v = WeightedMeanFitter::weightedMeanOutlierRejection(points, *iclus);
