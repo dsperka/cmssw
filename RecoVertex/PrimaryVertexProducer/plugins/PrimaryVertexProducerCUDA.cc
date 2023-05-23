@@ -303,7 +303,6 @@ void PrimaryVertexProducerCUDA::produce(edm::Event& iEvent, const edm::EventSetu
         if (std::fabs(z) > 1000.){ 
           isGood = false;
           weight = 0;
-	  if (fVerbose) std::cout << "PrimaryVertexProducerCUDA: rejecting track with z: " << z << " dz2: " << dz2 << " x: " << x<< " dxy2: "<<dxy2<<std::endl;
           continue;
         }
         else{ // Get dz2 for the track
@@ -315,7 +314,6 @@ void PrimaryVertexProducerCUDA::produce(edm::Event& iEvent, const edm::EventSetu
           if (not(std::isfinite(oneoverdz2)) || oneoverdz2< std::numeric_limits<double>::min()){ // Bad track dz2 is taken out
             isGood = false;
             weight = 0;
-	    if (fVerbose) std::cout << "PrimaryVertexProducerCUDA: rejecting track with z: " << z << " dz2: " << dz2 << " x: " << x<< " dxy2: "<<dxy2<<std::endl;
             continue;
           }
           else{
@@ -325,7 +323,6 @@ void PrimaryVertexProducerCUDA::produce(edm::Event& iEvent, const edm::EventSetu
               if (not(std::isfinite(weight)) || weight< std::numeric_limits<double>::epsilon()){ // Bad track weight is taken out
                 isGood = false;
                 weight = 0;
-		if (fVerbose) std::cout << "PrimaryVertexProducerCUDA: rejecting track with z: " << z << " dz2: " << dz2 << " x: " << x<< " dxy2: "<<dxy2<<" weight: "<<weight<<std::endl;
                 continue;
               }
             }
@@ -340,6 +337,8 @@ void PrimaryVertexProducerCUDA::produce(edm::Event& iEvent, const edm::EventSetu
             CPUtracksObject->x(nTrueTracks) = x;
             CPUtracksObject->y(nTrueTracks) = y;
             CPUtracksObject->z(nTrueTracks) = z;
+            CPUtracksObject->xAtIP(nTrueTracks) = t_tks.at(idx).impactPointState().globalPosition().x();
+            CPUtracksObject->yAtIP(nTrueTracks) = t_tks.at(idx).impactPointState().globalPosition().y();
             CPUtracksObject->px(nTrueTracks) = pxAtPCA;
             CPUtracksObject->py(nTrueTracks) = pyAtPCA;
             CPUtracksObject->pz(nTrueTracks) = pzAtPCA;
@@ -348,24 +347,21 @@ void PrimaryVertexProducerCUDA::produce(edm::Event& iEvent, const edm::EventSetu
             CPUtracksObject->dz2(nTrueTracks) = dz2;
             CPUtracksObject->oneoverdz2(nTrueTracks) = oneoverdz2;
             CPUtracksObject->dxy2(nTrueTracks) = dxy2;
+            CPUtracksObject->dxy2AtIP(nTrueTracks) = t_tks.at(idx).track().dxyError()*t_tks.at(idx).track().dxyError();
             CPUtracksObject->order(nTrueTracks) = nTrueTracks;
             CPUtracksObject->sum_Z(nTrueTracks) = 0;
             CPUtracksObject->kmin(nTrueTracks) = 0; // will loop from kmin to kmax-1. At the start only one vertex
             CPUtracksObject->kmax(nTrueTracks) = 1;
             CPUtracksObject->aux1(nTrueTracks) = 0;
             CPUtracksObject->aux2(nTrueTracks) = 0;
-            if (fVerbose) std::cout << "PrimaryVertexProducerCUDA: nTrueTracks: " << nTrueTracks << " z: " << z << " dz2: " << dz2 << " x: " << x<< " dxy2: "<<dxy2<<std::endl;
             nTrueTracks++;
 //            if (z > max_z) max_z = z;
 //            if (z < min_z) min_z = z;
           }
         }
-      } else {
-	if (fVerbose) std::cout << "PrimaryVertexProducerCUDA: rejecting track with z: " << z << " dz2: " << dz2 << " x: " << x<< " dxy2: "<<dxy2<<std::endl;
       }
   }
   CPUtracksObject->nTrueTracks = nTrueTracks;
-  if (fVerbose) std::cout << "nTrueTracks in producer: " << nTrueTracks << std::endl;
   
   (*CPUosumtkwtObject) = (*CPUosumtkwtObject) > 0 ? 1./(*CPUosumtkwtObject) : 0.; 
 
@@ -477,7 +473,6 @@ void PrimaryVertexProducerCUDA::produce(edm::Event& iEvent, const edm::EventSetu
     // Then we iterate over them and apply the conversion
     for (unsigned int k = 0; k < CPUverticesObject->nTrueVertex(0) ; k++){
       unsigned int ivertex = CPUverticesObject->order(k);
-      if (fVerbose) std::cout<<"PrimaryVertexProducerCUDA: ivtx. "<<ivertex<<" "<<" ntracks: "<<CPUverticesObject->ntracks(ivertex)<<" ndof: "<<CPUverticesObject->ndof(ivertex)<<std::endl; 
       //if (CPUverticesObject->isGood(ivertex)){
 	// I.e. the vertex is correct, so we fill a new one, first we get the error matrix
         AlgebraicSymMatrix33 newErr;

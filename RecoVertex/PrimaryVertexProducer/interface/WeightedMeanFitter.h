@@ -8,10 +8,7 @@
 #include "FWCore/MessageLogger/interface/MessageLogger.h"
 #include "DataFormats/BeamSpot/interface/BeamSpot.h"
 
-#define DEBUG
-#ifdef DEBUG
-#define DEBUGLEVEL -5 // -5 means: debug the same way as CPU; Final value TBD
-#endif
+//#define DEBUG
 
 namespace WeightedMeanFitter {
 
@@ -75,6 +72,7 @@ namespace WeightedMeanFitter {
 #ifdef DEBUG
 	     printf("cpu fitter x,dx2,wx,z,dz2,wz %.10f,%.10f,%.10f,%.10f,%.10f,%.10f \n",p.first.x(),p.second.x()*p.second.x(),wx,p.first.z(),p.second.z()*p.second.z(),wz);
 #endif
+
        }
 
        if ( s_wx == 0. || s_wz == 0. ){
@@ -176,7 +174,6 @@ namespace WeightedMeanFitter {
        err(1,1) = err_x * corr_x * corr_x;
        err(2,2) = err_z * corr_z * corr_z;
 
-
        double dist = 0;
        for (const auto& p : points){
           wx = p.second.x();
@@ -219,21 +216,21 @@ inline TransientVertex weightedMeanOutlierRejectionBeamSpot(const std::vector<st
    
      for (const auto& p : points){ 
 
-            wx = p.second.x() <=  precision ? 1. / std::pow(precision,2) : 1. / std::pow(p.second.x(),2);
-            wy = p.second.y() <=  precision ? 1. / std::pow(precision,2) : 1. / std::pow(p.second.y(),2);
-
-            wz = p.second.z() <=  precision ? 1. / std::pow(precision,2) : 1. / std::pow(p.second.z(),2);
-
-           x += p.first.x() * wx;
-           y += p.first.y() * wy;
-           z += p.first.z() * wz;
-
-           s_wx += wx;
-           s_wy += wy;
-           s_wz += wz;
-	   
+       wx = p.second.x() <=  precision ? 1. / std::pow(precision,2) : 1. / std::pow(p.second.x(),2);
+       wy = p.second.y() <=  precision ? 1. / std::pow(precision,2) : 1. / std::pow(p.second.y(),2);
+       
+       wz = p.second.z() <=  precision ? 1. / std::pow(precision,2) : 1. / std::pow(p.second.z(),2);
+       
+       x += p.first.x() * wx;
+       y += p.first.y() * wy;
+       z += p.first.z() * wz;
+       
+       s_wx += wx;
+       s_wy += wy;
+       s_wz += wz;
+       
 #ifdef DEBUG
-	   printf("cpu fitter x,dx2,wx,z,dz2,wz %.10f,%.10f,%.10f,%.10f,%.10f,%.10f \n",p.first.x(),p.second.x()*p.second.x(),wx,p.first.z(),p.second.z()*p.second.z(),wz);
+       printf("cpu fitter x,dx2,wx,z,dz2,wz %.10f,%.10f,%.10f,%.10f,%.10f,%.10f \n",p.first.x(),p.second.x()*p.second.x(),wx,p.first.z(),p.second.z()*p.second.z(),wz);
 #endif
 
      }
@@ -289,14 +286,13 @@ inline TransientVertex weightedMeanOutlierRejectionBeamSpot(const std::vector<st
 	    //std::pair<GlobalPoint, double> p = nearestPoint(GlobalPoint(old_x, old_y, old_z), (iclus)[i].track());
             std::pair<GlobalPointDouble, double> p = nearestPoint(GlobalPointDouble(old_x, old_y, old_z), (iclus)[i]);
 
-
             wx =  points[i].second.x() <= precision ? std::pow(precision, 2) : std::pow(points[i].second.x(), 2);
             wy =  points[i].second.y() <= precision ? std::pow(precision, 2) : std::pow(points[i].second.y(), 2);
 
             wz =  points[i].second.z() <= precision ? std::pow(precision, 2) : std::pow(points[i].second.z(),2);
            
 #ifdef DEBUG
-	      printf("cpu fitter niter,x,dx2,wx,z,dz2,wz %d,%.10f,%.10f,%.10f,%.10f,%.10f,%.10f \n",niter,p.first.x(),points[i].second.x()*points[i].second.x(),wx,p.first.z(),points[i].second.z()*points[i].second.z(),wz);
+	    printf("cpu fitter niter,x,dx2,wx,z,dz2,wz %d,%.10f,%.10f,%.10f,%.10f,%.10f,%.10f \n",niter,p.first.x(),points[i].second.x()*points[i].second.x(),wx,p.first.z(),points[i].second.z()*points[i].second.z(),wz);
 #endif
  
             xpull = 0.;

@@ -24,6 +24,7 @@ public:
   double min_z;
   eigenSoA::ScalarSoA<double, S> significance;
   eigenSoA::ScalarSoA<double, S> dxy2;
+  eigenSoA::ScalarSoA<double, S> dxy2AtIP;
   eigenSoA::ScalarSoA<double, S> dz2; 
   eigenSoA::ScalarSoA<double, S> oneoverdz2; // used in clusterizer
   eigenSoA::ScalarSoA<double, S> z;
@@ -57,6 +58,8 @@ public:
   eigenSoA::ScalarSoA<double, S> pz;
   eigenSoA::ScalarSoA<double, S> x;
   eigenSoA::ScalarSoA<double, S> y;
+  eigenSoA::ScalarSoA<double, S> xAtIP;
+  eigenSoA::ScalarSoA<double, S> yAtIP;
   eigenSoA::ScalarSoA<double, S> dxError;
   eigenSoA::ScalarSoA<double, S> dyError;
   eigenSoA::ScalarSoA<double, S> dzError;
