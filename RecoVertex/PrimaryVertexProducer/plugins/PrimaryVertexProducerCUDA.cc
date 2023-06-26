@@ -421,60 +421,57 @@ void PrimaryVertexProducerCUDA::produce(edm::Event& iEvent, const edm::EventSetu
   ////////////////////// Fitting on GPU //////////////////////////////
   ////////////////////////////////////////////////////////////////////
 
-  //JS_EDIT: fitting moved here before copies back to the cpu
   clusterizerCUDA::verticesAndClusterize(ntracks, GPUtracksObject, GPUverticesObject, cParams, cudaStreamDefault);
 
+  fitterCUDA::bs beamspot;
+  beamspot.x = beamSpot.position().x();
+  beamspot.y = beamSpot.position().y();
+  beamspot.cxx = bse.cxx();
+  beamspot.cyy = bse.cyy();
 
-  //change to just first algo with beamspot constraint
   for (std::vector<algo>::const_iterator algorithm = algorithms.begin(); algorithm != algorithms.end(); algorithm++) {
-  //std::vector<algo>::const_iterator algorithm = algorithms.begin();
-    auto result = std::make_unique<reco::VertexCollection>();
-    reco::VertexCollection& vColl = (*result);
-    std::vector<TransientVertex> pvs;
-    //outsource move algo to fitterCUDA::algo, less data movement
+
     fitterCUDA::algo algorithm_for_fitter;
     algorithm_for_fitter.fitter = (*algorithm).fitter;
     algorithm_for_fitter.vertexSelector = (*algorithm).vertexSelector;
     algorithm_for_fitter.label = (*algorithm).label;
     algorithm_for_fitter.useBeamConstraint = (*algorithm).useBeamConstraint;
     algorithm_for_fitter.minNdof = (*algorithm).minNdof;
-
-    fitterCUDA::bs beamspot;
-    beamspot.x = beamSpot.position().x();
-    beamspot.y = beamSpot.position().y();
-    beamspot.cxx = bse.cxx();
-    beamspot.cyy = bse.cyy();
     
     fitterCUDA::wrapper(ntracks, GPUtracksObject, GPUverticesObject, algorithm_for_fitter, beamspot);
 
-    //copy over back to CPU, keep conditionals below the same
-    //conversion happens here//
+  }
 
-    //POST_CONDITIONS
+  //syncing first because memcpy is a sync op
+  cudaCheck(cudaDeviceSynchronize());
+  cudaCheck(cudaMemcpy(CPUverticesObject, GPUverticesObject, sizeof(TrackForPV::VertexForPVSoA), cudaMemcpyDeviceToHost));
 
-    //if (fVerbose) std::cout << "PrimaryVertexProducerCUDAAlgorithm::vertices  candidates =" << pvs.size() << std::endl;
-    //if (clusters.size() > 2 && clusters.size() > 2 * GPUverticesObject->nTrueVertex(0))
-    //  edm::LogWarning("PrimaryVertexProducerCUDA")
-    //      << "more than half of candidate vertices lost " << GPUverticesObject->nTrueVertex(0) << ' ' << clusters.size();
+  for (std::vector<algo>::const_iterator algorithm = algorithms.begin(); algorithm != algorithms.end(); algorithm++) {
+    auto result = std::make_unique<reco::VertexCollection>();
+    reco::VertexCollection& vColl = (*result);
+    std::vector<TransientVertex> pvs;
 
-    //should already be sorted
-    //if (GPUverticesObject->nTrueVertex(0) > 1) sort(GPUverticesObject->order(0), GPUverticesObject->order(GPUverticesObject->nTrueVertex(0)-1), VertexHigherPtSquared());
-    //   for (unsigned int i = 0; i < GPUverticesObject->nTrueVertex(0); i++) {
-    //   auto iv = GPUverticesObject->order(i);
-    //   for (TrackForPV::VertexForPvSoA::const_iterator iv = GPUverticesObject->order(0); iv != GPUverticesObject->order(GPUverticesObject->nTrueVertex(0)-1); iv++) {
-    //  vColl.push_back(*iv);
-    //  }
-    // We have to copy the vertex back to CPU first
-
-    //syncing first because memcpy is a sync op
-    cudaCheck(cudaDeviceSynchronize());
-    cudaCheck(cudaMemcpy(CPUverticesObject, GPUverticesObject, sizeof(TrackForPV::VertexForPVSoA), cudaMemcpyDeviceToHost));
-
-    // Then we iterate over them and apply the conversion
     for (unsigned int k = 0; k < CPUverticesObject->nTrueVertex(0) ; k++){
       unsigned int ivertex = CPUverticesObject->order(k);
-      //if (CPUverticesObject->isGood(ivertex)){
-	// I.e. the vertex is correct, so we fill a new one, first we get the error matrix
+      if ((*algorithm).useBeamConstraint) {
+        AlgebraicSymMatrix33 newErr;
+        newErr(0, 0) = CPUverticesObject->errxBS(ivertex);
+        newErr(1, 1) = CPUverticesObject->erryBS(ivertex);
+        newErr(2, 2) = CPUverticesObject->errzBS(ivertex);
+        // Then we build the new vertex
+	reco::Vertex newVertex = reco::Vertex(reco::Vertex::Point(CPUverticesObject->xBS(ivertex), CPUverticesObject->yBS(ivertex), CPUverticesObject->zBS(ivertex)),
+                GlobalError(newErr).matrix4D(),
+                CPUverticesObject->t(ivertex), // Without time, for the moment
+                CPUverticesObject->chi2BS(ivertex),
+                CPUverticesObject->ndofBS(ivertex),
+                CPUverticesObject->ntracks(ivertex));
+        // And we fill up the track information
+	for (unsigned int itrack = 0; itrack < CPUverticesObject->ntracks(ivertex) ; itrack++){
+          newVertex.add(t_tks.at(CPUverticesObject->track_id(ivertex)(itrack)).trackBaseRef(), CPUverticesObject->track_weightBS(ivertex)(itrack));
+        }
+	// We push the new vertex into the collection then
+	vColl.push_back(newVertex);
+      } else {
         AlgebraicSymMatrix33 newErr;
         newErr(0, 0) = CPUverticesObject->errx(ivertex);
         newErr(1, 1) = CPUverticesObject->erry(ivertex);
@@ -488,11 +485,11 @@ void PrimaryVertexProducerCUDA::produce(edm::Event& iEvent, const edm::EventSetu
                 CPUverticesObject->ntracks(ivertex));
         // And we fill up the track information
 	for (unsigned int itrack = 0; itrack < CPUverticesObject->ntracks(ivertex) ; itrack++){
-          newVertex.add(t_tks.at(CPUverticesObject->track_id(ivertex)(itrack)).trackBaseRef(), CPUverticesObject->track_weight(ivertex)(itrack)); // They are never refitted tracks so this is ok
+          newVertex.add(t_tks.at(CPUverticesObject->track_id(ivertex)(itrack)).trackBaseRef(), CPUverticesObject->track_weight(ivertex)(itrack));
         }
 	// We push the new vertex into the collection then
 	vColl.push_back(newVertex);
-      //}
+      }
     }
 
     // This we can keep as is, if we found no vertex, fill a dummy one
@@ -536,9 +533,6 @@ void PrimaryVertexProducerCUDA::produce(edm::Event& iEvent, const edm::EventSetu
   }
 
 
-
-
-
   ///// TODO:: update this when we put the fitter into GPU as well ////
   //cudaCheck(cudaFree(GPUverticesObject));
   //cudaCheck(cudaFree(CPUtracksObject));
@@ -548,15 +542,15 @@ void PrimaryVertexProducerCUDA::produce(edm::Event& iEvent, const edm::EventSetu
 
 //  std::cout << "Begin copying back" << std::endl;
 //  std::cout << "size of vertices: " << sizeof(TrackForPV::VertexForPVSoA) << std::endl;
-  cudaCheck(cudaMemcpy(CPUverticesObject, GPUverticesObject, sizeof(TrackForPV::VertexForPVSoA), cudaMemcpyDeviceToHost));
+//  cudaCheck(cudaMemcpy(CPUverticesObject, GPUverticesObject, sizeof(TrackForPV::VertexForPVSoA), cudaMemcpyDeviceToHost));
 //  std::cout << "End copying back" << std::endl;
 //  std::cout << "Begin copying back 2" << std::endl;
-  cudaCheck(cudaMemcpy(CPUtracksObject, GPUtracksObject, sizeof(TrackForPV::TrackForPVSoA), cudaMemcpyDeviceToHost));
+//  cudaCheck(cudaMemcpy(CPUtracksObject, GPUtracksObject, sizeof(TrackForPV::TrackForPVSoA), cudaMemcpyDeviceToHost));
 //  std::cout << "End copying back 2" << std::endl;
   //unsigned int gridSize  = 32;
   //clusterizerCUDA::dumpTV(CPUtracksObject, CPUverticesObject, gridSize);
 
-  cudaCheck(cudaMemcpy(CPUbeta.get(), GPUbeta.get(), sizeof(double), cudaMemcpyDeviceToHost));
+  //  cudaCheck(cudaMemcpy(CPUbeta.get(), GPUbeta.get(), sizeof(double), cudaMemcpyDeviceToHost));
 //  cudaCheck(cudaFree(GPUverticesObject));
  // cudaCheck(cudaFree(GPUtracksObject));
   //cudaCheck(cudaFree(d_obj_ptr));  

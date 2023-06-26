@@ -61,7 +61,7 @@ __global__ void fitterKernel(
     double s2_wx=0., s2_wz=0.;
     double wx=0., wz=0., chi2=0.;
     double wy=0., s_wy=0., s2_wy=0.;
-    vertices->ndof(ivertex) = 0; 
+    int ndof=0;
 
     for (unsigned int kk = 0; kk < tracks->nTrueTracks; kk++){
       unsigned int itrack = tracks->order(kk);
@@ -163,7 +163,7 @@ __global__ void fitterKernel(
       s2_wx = 0; s2_wy = 0; s2_wz = 0;
 
       x = 0; y = 0; z = 0;
-      vertices->ndof(ivertex) = 0;
+      ndof=0;
 
       for (unsigned int kk = 0; kk < tracks->nTrueTracks; kk++){
 
@@ -219,7 +219,7 @@ __global__ void fitterKernel(
 	  xpull = 0;
 	  if (distz < mu2 && distx < mu2 && disty < mu2) {
 	    xpull = 1.;
-	    vertices->ndof(ivertex) += 1; 
+	    ndof += 1;
 	    track_weights[track_weight_counter] = xpull;
 	  } else {
 	    track_weights[track_weight_counter] = 0;
@@ -273,20 +273,25 @@ __global__ void fitterKernel(
       }
     }
 
-    vertices->x(ivertex) = x; 
-    vertices->y(ivertex) = y;
-    vertices->z(ivertex) = z;
-
     if (algorithm.useBeamConstraint) {
-      vertices->errx(ivertex) = err_x * pow(corr_x_bs,2);
-      vertices->erry(ivertex) = err_y * pow(corr_x_bs,2);
-      vertices->errz(ivertex) = err_z * pow(corr_z,2);
+      vertices->xBS(ivertex) = x; 
+      vertices->yBS(ivertex) = y;
+      vertices->zBS(ivertex) = z;
+      vertices->errxBS(ivertex) = err_x * pow(corr_x_bs,2);
+      vertices->erryBS(ivertex) = err_y * pow(corr_x_bs,2);
+      vertices->errzBS(ivertex) = err_z * pow(corr_z,2);
+      vertices->ndofBS(ivertex) = ndof;
+      vertices->track_weightBS(ivertex) = track_weights;
     } else {
+      vertices->x(ivertex) = x; 
+      vertices->y(ivertex) = y;
+      vertices->z(ivertex) = z;
       vertices->errx(ivertex) = err_x * pow(corr_x,2);
       vertices->erry(ivertex) = err_y * pow(corr_x,2);
       vertices->errz(ivertex) = err_z * pow(corr_z,2);
+      vertices->ndof(ivertex) = ndof;
+      vertices->track_weight(ivertex) = track_weights;
     }
-    vertices->track_weight(ivertex) = track_weights;
 
     //----------------------------------chi2 loop-------------------------------------
     double dist = 0;
@@ -327,10 +332,18 @@ __global__ void fitterKernel(
       }
     }
 
-    vertices->chi2(ivertex) = chi2; 
+    if (algorithm.useBeamConstraint) {
+      vertices->chi2BS(ivertex) = chi2; 
+    } else {
+      vertices->chi2(ivertex) = chi2; 
+    }
 
 #ifdef DEBUG
-    printf("end of gpu fitter x,y,z %.10f,%.10f,%.10f \n",vertices->x(ivertex),vertices->y(ivertex),vertices->z(ivertex));
+    if (algorithm.useBeamConstraint) {
+      printf("end of gpu fitter x,y,z %.10f,%.10f,%.10f \n",vertices->xBS(ivertex),vertices->yBS(ivertex),vertices->zBS(ivertex));
+    } else {
+      printf("end of gpu fitter x,y,z %.10f,%.10f,%.10f \n",vertices->x(ivertex),vertices->y(ivertex),vertices->z(ivertex));
+    }
 #endif
 
   }

@@ -111,6 +111,17 @@ public:
   // Auxiliar vectors
   eigenSoA::ScalarSoA<double, S> aux1;
   eigenSoA::ScalarSoA<double, S> aux2;
+  // For the BS constrained version
+  eigenSoA::ScalarSoA<double, S> xBS;
+  eigenSoA::ScalarSoA<double, S> yBS;
+  eigenSoA::ScalarSoA<double, S> zBS;
+  eigenSoA::ScalarSoA<double, S> errxBS;
+  eigenSoA::ScalarSoA<double, S> erryBS;
+  eigenSoA::ScalarSoA<double, S> errzBS;
+  eigenSoA::ScalarSoA<double, S> chi2BS;
+  eigenSoA::ScalarSoA<unsigned int, S> ndofBS;
+  eigenSoA::MatrixSoA<Vector512d, S> track_weightBS;
+
 };
 
 

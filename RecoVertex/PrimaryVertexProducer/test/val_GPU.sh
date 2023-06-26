@@ -6,14 +6,14 @@ cd ../../../
 clear
 cmsenv
 #scram b clean
-scram b -j 4
+#scram b -j 4
 cd RecoVertex/PrimaryVertexProducer/test
 cmsenv
 
-#cmsRun vertexTest.py n=100 verbose=False gpu=False > cpu100.log
-#cmsRun vertexTest.py n=100 verbose=False gpu=True > gpu100.log
+#cmsRun vertexTest.py n=1000 verbose=False gpu=False > cpu1000.log
+#cmsRun vertexTest.py n=1000 verbose=False gpu=True > gpu1000.log
 
-#cmsRun vertexTest.py n=1 verbose=True gpu=False > cpu.log
+cmsRun vertexTest.py n=1 verbose=True gpu=False > cpu.log
 cmsRun vertexTest.py n=1 verbose=True gpu=True > gpu.log
 
 #harvestTrackValidationPlots.py test_dqm_cpu.root -o cpu.root
