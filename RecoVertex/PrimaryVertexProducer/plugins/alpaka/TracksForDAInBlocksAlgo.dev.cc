@@ -68,7 +68,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
           trackInBlocks[newIndex].oneoverdz2() = inputTracks[oldIndex].oneoverdz2();
           trackInBlocks[newIndex].dxy2AtIP() = inputTracks[oldIndex].dxy2AtIP();
           trackInBlocks[newIndex].dxy2() = inputTracks[oldIndex].dxy2();
-          trackInBlocks[newIndex].sum_Z() = inputTracks[oldIndex].order();
+          trackInBlocks[newIndex].sum_Z() = 0;
           trackInBlocks[newIndex].kmin() = inputTracks[oldIndex].kmin();
           trackInBlocks[newIndex].kmax() = inputTracks[oldIndex].kmax();
           trackInBlocks[newIndex].aux1() = inputTracks[oldIndex].aux1();

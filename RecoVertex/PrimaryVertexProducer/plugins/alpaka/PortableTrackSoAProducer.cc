@@ -174,22 +174,22 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
 
   private:
     const edm::ESGetToken<TransientTrackBuilder, TransientTrackRecord> theTTBToken_;
-    edm::EDGetTokenT<reco::TrackCollection> trackToken_;
-    edm::EDGetTokenT<reco::BeamSpot> beamSpotToken_;
+    const edm::EDGetTokenT<reco::TrackCollection> trackToken_;
+    const edm::EDGetTokenT<reco::BeamSpot> beamSpotToken_;
     device::EDPutToken<TrackForVertexDeviceCollection> devicePutToken_;
     static double convertTrack(TrackForVertexHostCollection::View::element out,
-                               const reco::TransientTrack in,
-                               const reco::BeamSpot bs,
-                               const TrackFilterParametersForVertexing fParams,
+                               const reco::TransientTrack& in,
+                               const reco::BeamSpot& bs,
+                               const TrackFilterParametersForVertexing& fParams,
                                int32_t idx,
                                int32_t order);
     TrackFilterParametersForVertexing fParams;
   };  //PortableTrackSoAProducer declaration
 
   double PortableTrackSoAProducer::convertTrack(TrackForVertexHostCollection::View::element out,
-                                                const reco::TransientTrack in,
-                                                const reco::BeamSpot bs,
-                                                const TrackFilterParametersForVertexing fParams,
+                                                const reco::TransientTrack& in,
+                                                const reco::BeamSpot& bs,
+                                                const TrackFilterParametersForVertexing& fParams,
                                                 int32_t idx,
                                                 int32_t order) {
     double weight = -1;

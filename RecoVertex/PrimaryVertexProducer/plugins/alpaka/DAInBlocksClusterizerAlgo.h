@@ -9,11 +9,8 @@
 
 #include "DataFormats/VertexSoA/interface/alpaka/VertexDeviceCollection.h"
 #include "DataFormats/VertexSoA/interface/alpaka/TrackForVertexDeviceCollection.h"
-#include "HeterogeneousCore/AlpakaInterface/interface/config.h"
 
-//#ifndef DEBUG_RECOVERTEX_PRIMARYVERTEXPRODUCER_CLUSTERIZERALGO
-//#define DEBUG_RECOVERTEX_PRIMARYVERTEXPRODUCER_CLUSTERIZERALGO 5
-//#endif
+//#define DEBUG_RECOVERTEX_PRIMARYVERTEXPRODUCER_CLUSTERIZERALGO 1
 
 namespace ALPAKA_ACCELERATOR_NAMESPACE {
   using namespace cms::alpakatools;
@@ -74,6 +71,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
     cms::alpakatools::device_buffer<Device, double[]> osumtkwt_;
   };
 
+#ifdef DEBUG_RECOVERTEX_PRIMARYVERTEXPRODUCER_CLUSTERIZERALGO
   template <alpaka::concepts::Acc TAcc>
   ALPAKA_FN_ACC static void dump(const TAcc& acc, double& beta, VertexDeviceCollection::View vertices) {
     int blockIdx = alpaka::getIdx<alpaka::Grid, alpaka::Blocks>(acc)[0u];
@@ -100,6 +98,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
           vertices[ivertex].rho());
     }
   }
+#endif  // DEBUG_RECOVERTEX_PRIMARYVERTEXPRODUCER_CLUSTERIZERALGO
 
   template <alpaka::concepts::Acc TAcc>
   ALPAKA_FN_ACC static void set_vtx_range(const TAcc& acc,
@@ -286,7 +285,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
     alpaka::syncBlockThreads(acc);
     // Sorter things
     auto& critical_dist = alpaka::declareSharedVar<float[128], __COUNTER__>(acc);
-    auto& critical_index = alpaka::declareSharedVar<float[128], __COUNTER__>(acc);
+    auto& critical_index = alpaka::declareSharedVar<int[128], __COUNTER__>(acc);
     int& ncritical = alpaka::declareSharedVar<int, __COUNTER__>(acc);
     if (once_per_block(acc)) {
       ncritical = 0;
@@ -414,7 +413,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
     }
     alpaka::syncBlockThreads(acc);
     auto& critical_temp = alpaka::declareSharedVar<float[128], __COUNTER__>(acc);
-    auto& critical_index = alpaka::declareSharedVar<float[128], __COUNTER__>(acc);
+    auto& critical_index = alpaka::declareSharedVar<int[128], __COUNTER__>(acc);
     int& ncritical = alpaka::declareSharedVar<int, __COUNTER__>(acc);
     // Information for the vertex splitting properties
     double& p1 = alpaka::declareSharedVar<double, __COUNTER__>(acc);
