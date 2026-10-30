@@ -29,6 +29,15 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
       trackToken_ = consumes(config.getParameter<edm::InputTag>("TrackLabel"));
       beamSpotToken_ = consumes(config.getParameter<edm::InputTag>("BeamSpotLabel"));
       devicePutToken_ = produces();
+      // Vertex::track_id() stores an index into the per-block-duplicated tracksInBlocks device
+      // collection (deliberately, so the fitter can index the same collection -- see the
+      // comment in DAInBlocksClusterizerArbitrator.dev.cc's track-list-building code), NOT an
+      // index into the original TrackLabel collection. Consumers that need to map a vertex's
+      // tracks back to the original input collection (e.g. SoAToRecoVertexProducer, to build
+      // reco::TrackRefs) need tracksInBlocks' own ttIndex() column, which holds that original
+      // index. Publish tracksInBlocks itself so that lookup is possible; without it there is no
+      // way to recover the original track index from track_id() alone.
+      tracksInBlocksPutToken_ = produces();
       blockSize_ = config.getParameter<int32_t>("blockSize");
       blockOverlap_ = config.getParameter<double>("blockOverlap");
       clusterParams_ = {
@@ -88,6 +97,10 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
       fitterKernel_.fit(iEvent.queue(), tracksInBlocks, deviceVertex, beamSpot);
       // Put the vertices in the event as a portable collection
       iEvent.emplace(devicePutToken_, std::move(deviceVertex));
+      // Also publish tracksInBlocks so consumers can translate a vertex's track_id() (an index
+      // into this collection) back to the original input track index via ttIndex() -- see the
+      // comment on tracksInBlocksPutToken_ above.
+      iEvent.emplace(tracksInBlocksPutToken_, std::move(tracksInBlocks));
     }
 
     static void fillDescriptions(edm::ConfigurationDescriptions& descriptions) {
@@ -122,6 +135,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
     device::EDGetToken<TrackForVertexDeviceCollection> trackToken_;
     device::EDGetToken<BeamSpotDevice> beamSpotToken_;
     device::EDPutToken<VertexDeviceCollection> devicePutToken_;
+    device::EDPutToken<TrackForVertexDeviceCollection> tracksInBlocksPutToken_;
     int32_t blockSize_;
     double blockOverlap_;
     FitterParameters fitterParams_;

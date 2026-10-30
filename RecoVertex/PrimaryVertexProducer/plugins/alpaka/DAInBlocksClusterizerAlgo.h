@@ -314,10 +314,15 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
       // All threads are running the same code, to know when to exit
       if (ncritical == 0 || maxVerticesPerBlock == nprev)
         return;
+      // Find the smallest remaining critical distance (matches legacy's "merge the smallest
+      // distance clusters first"). The previous version initialized minVal to a sentinel and
+      // compared with '>', a condition that can never trigger -- ikO stayed 0 on every outer
+      // iteration, so only the first-scanned critical pair ever got merged; every other
+      // close-by pair (e.g. several close vertices sharing one patch of z) was silently starved.
       int ikO = 0;
       double minVal = 999999.;
       for (int sort1 = 0; sort1 < ncritical; ++sort1) {
-        if (critical_dist[sort1] > minVal) {
+        if (critical_dist[sort1] < minVal) {
           minVal = critical_dist[sort1];
           ikO = sort1;
         }
@@ -696,12 +701,20 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
                  blockIdx);
         }
 #endif
+        // Capture the raw vertex index being removed BEFORE the order-array shift overwrites
+        // slot k0 -- k0 is a position in order-space, not a raw vertex index. Setting
+        // vertices[k0].isGood() = false AFTER the shift (as this used to) treats an order-space
+        // position as if it were a raw index, and by then slot k0 holds what used to be at
+        // k0+1 anyway, so it silently disables an unrelated/wrong vertex instead of the one
+        // actually being removed. Compare to merge(), which correctly translates via .order()
+        // before shifting.
+        int ivertexRemoved = vertices[k0].order();
         for (int ivertexOO = k0; ivertexOO < maxVerticesPerBlock * blockIdx + (int)nprev - 1; ++ivertexOO) {
           vertices[ivertexOO].order() =
               vertices[ivertexOO + 1].order();  // Update vertex order taking out the purged one
         }
         vertices[blockIdx].nV()--;
-        vertices[k0].isGood() = false;
+        vertices[ivertexRemoved].isGood() = false;
 #ifdef DEBUG_RECOVERTEX_PRIMARYVERTEXPRODUCER_CLUSTERIZERALGO
         if (once_per_block(acc)) {
           printf("[DAInBlocksClusterizerAlgo::purge()] BlockIdx %i, vertex %i purged\n", blockIdx, k0);

@@ -1,4 +1,5 @@
 #include "DataFormats/VertexSoA/interface/VertexHostCollection.h"
+#include "DataFormats/VertexSoA/interface/TrackForVertexHostCollection.h"
 #include "FWCore/ParameterSet/interface/ConfigurationDescriptions.h"
 #include "FWCore/ParameterSet/interface/ParameterSet.h"
 #include "FWCore/ParameterSet/interface/ParameterSetDescription.h"
@@ -24,6 +25,11 @@ class SoAToRecoVertexProducer : public edm::stream::EDProducer<> {
 public:
   SoAToRecoVertexProducer(edm::ParameterSet const& config)
       : portableVertexToken_(consumes(config.getParameter<edm::InputTag>("soaVertex"))),
+        // track_id() in the vertex SoA is an index into the per-block-duplicated tracksInBlocks
+        // device collection (published by PrimaryVertexProducerPortable under the same module
+        // label as soaVertex), not into srcTrack directly -- tracksInBlocks' own ttIndex()
+        // column holds the true srcTrack index. See the comment in produce() below.
+        soaTracksInBlocksToken_(consumes(config.getParameter<edm::InputTag>("soaVertex"))),
         recoTrackToken_(consumes(config.getParameter<edm::InputTag>("srcTrack"))),
         recoVertexToken_(produces<reco::VertexCollection>()) {}
 
@@ -38,6 +44,7 @@ public:
 private:
   void produce(edm::Event&, const edm::EventSetup&) override;
   const edm::EDGetTokenT<VertexHostCollection> portableVertexToken_;
+  const edm::EDGetTokenT<TrackForVertexHostCollection> soaTracksInBlocksToken_;
   const edm::EDGetTokenT<reco::TrackCollection> recoTrackToken_;
   const edm::EDPutTokenT<reco::VertexCollection> recoVertexToken_;
 };
@@ -46,6 +53,8 @@ void SoAToRecoVertexProducer::produce(edm::Event& iEvent, const edm::EventSetup&
   // Book inputs and space for outputs
   const VertexHostCollection& hostVertex = iEvent.get(portableVertexToken_);
   const VertexHostCollection::ConstView& hostVertexView = hostVertex.const_view();
+  const TrackForVertexHostCollection& hostTracksInBlocks = iEvent.get(soaTracksInBlocksToken_);
+  const TrackForVertexHostCollection::ConstView& hostTracksInBlocksView = hostTracksInBlocks.const_view();
   // Note that we need reco::Tracks for building the track Reference vector inside the reco::Vertex
   auto tracks = iEvent.getHandle(recoTrackToken_);
 
@@ -53,7 +62,13 @@ void SoAToRecoVertexProducer::produce(edm::Event& iEvent, const edm::EventSetup&
 
   // Do the conversion back to reco::Vertex
   reco::VertexCollection& vColl = (*result);
-  for (int iV = 0; iV < hostVertexView[0].nV(); iV++) {
+  // nV() good, compacted vertices are reached via the order() indirection (vertices[k].order()
+  // for k=0..nV()-1 gives their RAW indices, scattered across the full buffer) -- NOT via raw
+  // index k directly. Indexing hostVertexView[iV] with the loop counter itself (as this used to)
+  // checks essentially arbitrary/unrelated raw slots for isGood(), silently dropping the large
+  // majority of legitimately-finalized vertices from the output.
+  for (int iVO = 0; iVO < hostVertexView[0].nV(); iVO++) {
+    int iV = hostVertexView[iVO].order();
     if (not(hostVertexView[iV].isGood()))
       continue;
     // Convert the SoA errors to a diagonal 3x3 matrix
@@ -70,7 +85,14 @@ void SoAToRecoVertexProducer::produce(edm::Event& iEvent, const edm::EventSetup&
     auto& newV = vColl.back();
     // Finally, add references to the reco::Track used for building it
     for (int iT = 0; iT < hostVertexView[iV].ntracks(); iT++) {
-      int new_itrack = hostVertexView[iV].track_id()[iT];
+      // track_id() is an index into the tracksInBlocks device collection (deliberately -- see
+      // the comment on PrimaryVertexProducerPortable::tracksInBlocksPutToken_), NOT an index
+      // into srcTrack directly. Translate through ttIndex(), which tracksInBlocks carries
+      // specifically to allow recovering the original srcTrack index. Building the TrackRef
+      // directly from track_id() (as this used to) silently produced TrackRefs pointing at
+      // unrelated/wrong (or out-of-range) entries of srcTrack.
+      int blockLocalTrack = hostVertexView[iV].track_id()[iT];
+      int new_itrack = hostTracksInBlocksView[blockLocalTrack].ttIndex();
       reco::TrackRef ref(tracks, new_itrack);
       newV.add(ref, hostVertexView[iV].track_weight()[iT]);
     }

@@ -64,11 +64,23 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
       for (auto i : uniform_elements(
                acc,
                nTrueVertex)) {  // By construction nTrueVertex <= 1024, so this will always be a 1 thread to 2 vertex assignment tops
-        if (not(vertices[i].isGood()))
+        // i is a position in order-space (0..nTrueVertex-1 over the compacted good-vertex list),
+        // NOT a raw vertex index -- the nTrueVertex good vertices live at vertices[k].order() for
+        // k=0..nTrueVertex-1, scattered across the full buffer, exactly like everywhere else in
+        // this algorithm (update()/merge()/split()/purge() all translate through .order() the
+        // same way). Indexing vertices[i] directly here processed whatever happened to occupy raw
+        // slots [0, nTrueVertex) -- a mix of genuinely-good vertices and leftover
+        // "merged/purged away" dead slots (isGood()==false, stale/zeroed fields) -- and silently
+        // skipped every genuinely-good vertex whose raw index was >= nTrueVertex, leaving its
+        // errz() (and other fields) at whatever uninitialized/zero value was there before the
+        // fitter ran. That collapses zError() to ~0 for most vertices downstream, which always
+        // fails gen-vertex sigma-significance matching regardless of how accurate the position is.
+        int ivertex = vertices[i].order();
+        if (not(vertices[ivertex].isGood()))
           continue;  // If vertex was killed before, just skip
                      // Initialize positions and errors to 0
 #ifdef DEBUG_RECOVERTEX_PRIMARYVERTEXPRODUCER_FITTERALGO
-        printf("[WeightedVertexFitterAlgo::FitVertices()] Start vertex %i with %i tracks\n", i, vertices[i].ntracks());
+        printf("[WeightedVertexFitterAlgo::FitVertices()] Start vertex %i with %i tracks\n", ivertex, vertices[ivertex].ntracks());
 #endif
         float x = 0.;
         float y = 0.;
@@ -76,8 +88,8 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
         float errx = 0.;
         float errz = 0.;
 
-        for (int itrackInVertex = 0; itrackInVertex < vertices[i].ntracks(); itrackInVertex++) {
-          int itrack = vertices[i].track_id()[itrackInVertex];
+        for (int itrackInVertex = 0; itrackInVertex < vertices[ivertex].ntracks(); itrackInVertex++) {
+          int itrack = vertices[ivertex].track_id()[itrackInVertex];
           float wxy = tracks[itrack].dxy2() <= precisionsq ? 1. / precisionsq : 1. / tracks[itrack].dxy2();
           float wz = tracks[itrack].dz2() <= precisionsq ? 1. / precisionsq : 1. / tracks[itrack].dz2();
           x += tracks[itrack].x() * wxy;
@@ -122,6 +134,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
         float old_x;
         float old_y;
         float old_z;
+        bool fitFailed = false;
         while ((niter++) < maxIterations) {
 #ifdef DEBUG_RECOVERTEX_PRIMARYVERTEXPRODUCER_FITTERALGO
           printf("[WeightedVertexFitterAlgo::FitVertices()] At iteration %i, errs are %1.15f %1.15f %1.15f\n",
@@ -139,8 +152,8 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
           y = 0.;
           z = 0.;
           ndof = 0;
-          for (int itrackInVertex = 0; itrackInVertex < vertices[i].ntracks(); itrackInVertex++) {
-            int itrack = vertices[i].track_id()[itrackInVertex];
+          for (int itrackInVertex = 0; itrackInVertex < vertices[ivertex].ntracks(); itrackInVertex++) {
+            int itrack = vertices[ivertex].track_id()[itrackInVertex];
             // Position (ref point) of the track
             double tx = tracks[itrack].x();
             double ty = tracks[itrack].y();
@@ -188,11 +201,11 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
                 ((tz - old_z) * (tz - old_z) / (1 / wz + errz) <
                  muSquare)) {  // I.e., old coordinates of PCA are within 3 sigma of current vertex position, keep the track
               ndof += 1;
-              vertices[i].track_weight()[itrackInVertex] = 1;
+              vertices[ivertex].track_weight()[itrackInVertex] = 1;
               s_wx += wx;
               s_wz += wz;
             } else {  // Otherwise, discard track
-              vertices[i].track_weight()[itrackInVertex] = 0;
+              vertices[ivertex].track_weight()[itrackInVertex] = 0;
               wx = 0.;
               wz = 0.;
             }
@@ -234,6 +247,17 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
           float s_wy = s_wx;
           s_wx += bserrx;
           s_wy += bserry;
+          // Match legacy's WeightedMeanFitter.h safeguard: if every track failed the 3-sigma cut
+          // this iteration (and there's no beamspot term to rescue s_wz), s_wz stays 0 and
+          // z/=s_wz produces NaN/Inf. Legacy explicitly checks for this and discards the vertex
+          // (never includes it in the output) rather than dividing by zero; this port had no such
+          // check, so such vertices got NaN/Inf positions that silently vanish from downstream
+          // DQM histograms (TH1::Fill ignores NaN), quietly cutting otherwise-correctly-clustered
+          // vertices out of the final efficiency count.
+          if (s_wx == 0. || s_wy == 0. || s_wz == 0.) {
+            fitFailed = true;
+            break;
+          }
 #ifdef DEBUG_RECOVERTEX_PRIMARYVERTEXPRODUCER_FITTERALGO
           printf(
               "[WeightedVertexFitterAlgo::FitVertices()] Before dividing %i iteration %1.9f %1.9f %1.9f %1.9f %1.9f "
@@ -273,21 +297,27 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
           if ((abs(old_x - x) < precision) && (abs(old_y - y) < precision) && (abs(old_z - z) < precision))
             break;  // If good enough, stop the iterations
         }  // end while
+        if (fitFailed) {
+          // Matches legacy: a vertex whose fit failed (all tracks rejected as outliers, or
+          // errors too large) is dropped entirely rather than kept with a NaN/Inf position.
+          vertices[ivertex].isGood() = false;
+          continue;
+        }
         // Assign everything back in global memory to get the fitted vertex!
         errx *= corr_x * corr_x;
         erry *= corr_x * corr_x;
         errz *= corr_z * corr_z;
-        vertices[i].x() = x;
-        vertices[i].y() = y;
-        vertices[i].z() = z;
-        vertices[i].errx() = errx;
-        vertices[i].erry() = erry;
-        vertices[i].errz() = errz;
-        vertices[i].ndof() = ndof;
+        vertices[ivertex].x() = x;
+        vertices[ivertex].y() = y;
+        vertices[ivertex].z() = z;
+        vertices[ivertex].errx() = errx;
+        vertices[ivertex].erry() = erry;
+        vertices[ivertex].errz() = errz;
+        vertices[ivertex].ndof() = ndof;
         // Last get the chi square of the final vertex fit
         double chi2 = 0.;
-        for (int itrackInVertex = 0; itrackInVertex < vertices[i].ntracks(); itrackInVertex++) {
-          int itrack = vertices[i].track_id()[itrackInVertex];
+        for (int itrackInVertex = 0; itrackInVertex < vertices[ivertex].ntracks(); itrackInVertex++) {
+          int itrack = vertices[ivertex].track_id()[itrackInVertex];
           // Position (ref point) of the track
           float tx = tracks[itrack].x();
           float ty = tracks[itrack].y();
@@ -300,20 +330,20 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
                   (errz +
                    wz);  // chi2 doesn't use the PCA distance, but the ref point coordinates as in https://github.com/cms-sw/cmssw/blob/master/RecoVertex/PrimaryVertexProducer/interface/WeightedMeanFitter.h#L316
         }  // end for
-        vertices[i].chi2() = chi2;
+        vertices[ivertex].chi2() = chi2;
 #ifdef DEBUG_RECOVERTEX_PRIMARYVERTEXPRODUCER_FITTERALGO
         printf(
             "[WeightedVertexFitterAlgo::FitVertices()] Vertex %i, x: %1.9f, y:%1.9f, z:%1.9f, errx:%1.9f, errz:%1.9f, "
             "chi2:%1.9f, "
             "ndof:%1.9f\n",
             i,
-            vertices[i].x(),
-            vertices[i].y(),
-            vertices[i].z(),
-            vertices[i].errx(),
-            vertices[i].errz(),
-            vertices[i].chi2(),
-            vertices[i].ndof());
+            vertices[ivertex].x(),
+            vertices[ivertex].y(),
+            vertices[ivertex].z(),
+            vertices[ivertex].errx(),
+            vertices[ivertex].errz(),
+            vertices[ivertex].chi2(),
+            vertices[ivertex].ndof());
 #endif
       }  // end for (stride) loop
     }  // operator()
