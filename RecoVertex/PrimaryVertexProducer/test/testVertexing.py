@@ -117,6 +117,9 @@ if args.mode == "Alpaka":
             BeamSpotLabel = cms.InputTag("beamSpotSoA"),
     		blockOverlap = cms.double(0.50),
     		blockSize    = cms.int32(512),
+    		TkFitterParameters = cms.PSet(
+        		useBeamSpotConstraint = cms.bool(False),
+    		),
     		TkClusParameters = cms.PSet(    
         		coolingFactor = cms.double(0.6),  # moderate annealing speed
 		        zrange = cms.double(4.),          # consider only clusters within 4 sigma*sqrt(T) of a track
