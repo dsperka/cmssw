@@ -15,6 +15,9 @@
 #include "DataFormats/VertexReco/interface/Vertex.h"
 
 #include "DataFormats/Math/interface/AlgebraicROOTObjects.h"
+#include "RecoVertex/PrimaryVertexProducer/interface/VertexHigherPtSquared.h"
+
+#include <algorithm>
 
 /**
    * This plugin takes the SoA portableVertex and converts them to reco::Vertex, for usage within other workflows
@@ -82,6 +85,7 @@ void SoAToRecoVertexProducer::produce(edm::Event& iEvent, const edm::EventSetup&
       newV.add(ref, hostVertexView[iV].track_weight()[iT]);
     }
   }
+  std::sort(vColl.begin(), vColl.end(), VertexHigherPtSquared());
   // And finally put the collection in the event
   iEvent.put(std::move(result));
 }

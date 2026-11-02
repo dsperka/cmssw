@@ -28,6 +28,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
     double dzCutOff;
     double uniquetrkweight;
     double uniquetrkminp;
+    double mintrkweight;
     double zmerge;
     double zrange;
     int32_t convergence_mode;

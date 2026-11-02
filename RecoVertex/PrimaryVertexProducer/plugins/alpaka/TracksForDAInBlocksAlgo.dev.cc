@@ -29,11 +29,11 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
       printf("[TracksForDAInBlocksAlgo::operator()] Start from nTOld %i input tracks\n", nTOld);
 #endif
       // If all fit within a block, no need to split
-      int32_t nBlocks = nTOld > blockSize ? int32_t((nTOld - 1) / (blockOverlap * blockSize)) : 1;
+      int32_t nBlocks = nTOld > blockSize ? int32_t((nTOld - 1) / ((1. - blockOverlap) * blockSize)) : 1;
 #ifdef DEBUG_RECOVERTEX_PRIMARYVERTEXPRODUCERPORTABLE_BLOCKALGO
       printf("[TracksForDAInBlocksAlgo::operator()] Will create nBlocks: %i\n", nBlocks);
 #endif
-      int32_t overlapStart = blockOverlap * blockSize;
+      int32_t overlapStart = (1. - blockOverlap) * blockSize;
       for (auto iNewTrack : uniform_elements(
                acc,
                blockSize)) {  // The accelerator has as much threads as blockSize, so each thread will enter once on each block
@@ -79,10 +79,10 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
       if (once_per_block(acc)) {
         trackInBlocks.nT() =
             (int32_t)(nBlocks * blockSize + nTOld -
-                      blockOverlap * blockSize *
+                      (1. - blockOverlap) * blockSize *
                           std::ceil(
                               nTOld /
-                              (blockOverlap *
+                              ((1. - blockOverlap) *
                                blockSize)));  // The new number of tracks has to account for the fact that we overlapped
 #ifdef DEBUG_RECOVERTEX_PRIMARYVERTEXPRODUCERPORTABLE_BLOCKALGO
         printf("[TracksForDAInBlocksAlgo::operator()] Set nTracks to %i\n", trackInBlocks.nT());

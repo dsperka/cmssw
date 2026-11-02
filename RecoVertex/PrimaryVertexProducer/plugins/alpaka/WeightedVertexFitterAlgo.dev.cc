@@ -293,7 +293,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
         vertices[ivertex].errx() = errx;
         vertices[ivertex].erry() = erry;
         vertices[ivertex].errz() = errz;
-        vertices[ivertex].ndof() = ndof;
+        vertices[ivertex].ndof() = ndof > 1 ? (2 * ndof - 3) : 0.00001;
         // Last get the chi square of the final vertex fit
         double chi2 = 0.;
         for (int itrackInVertex = 0; itrackInVertex < vertices[ivertex].ntracks(); itrackInVertex++) {

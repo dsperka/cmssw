@@ -33,7 +33,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
     }
 #endif
 
-    for (unsigned int iv = 0; iv < maxVerticesInSoA; iv += blockSize) {
+    for (unsigned int iv = threadIdx; iv < maxVerticesInSoA; iv += blockSize) {
       if (vertices[iv].isGood()) {
         if ((vertices[iv].rho() > 10000) || (abs(vertices[iv].z()) > 30)) {
           vertices[iv].isGood() = false;
@@ -146,7 +146,6 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
 #endif
 
     alpaka::syncBlockThreads(acc);
-    double mintrkweight_ = 0.5;
     double rho0 = vertices[0].nV() > 1 ? 1. / vertices[0].nV() : 1.;
     double z_sum_init = rho0 * exp(-(beta)*cParams.dzCutOff * cParams.dzCutOff);
     for (int itrack = threadIdx; itrack < tracks.nT(); itrack += blockSize) {
@@ -166,7 +165,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
         float v_exp = exp(-(beta)*std::pow(tracks[itrack].z() - vertices[vertices[k].order()].z(), 2) *
                           tracks[itrack].oneoverdz2());
         float p = vertices[vertices[k].order()].rho() * v_exp * invZ;
-        if (p > p_max && p > mintrkweight_) {
+        if (p > p_max && p > cParams.mintrkweight) {
           // assign  track i -> vertex k (hard assignment unles we configure a non standard mintrweight_
           p_max = p;
           iMax = k;

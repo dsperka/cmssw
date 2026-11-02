@@ -20,7 +20,6 @@ using namespace std;
 DAClusterizerInZ_vect::DAClusterizerInZ_vect(const edm::ParameterSet& conf) {
   // hardcoded parameters
   maxIterations_ = 1000;
-  mintrkweight_ = 0.5;
 
   // configurable debug output
 #ifdef DEBUG
@@ -36,6 +35,7 @@ DAClusterizerInZ_vect::DAClusterizerInZ_vect(const edm::ParameterSet& conf) {
   coolingFactor_ = conf.getParameter<double>("coolingFactor");
   d0CutOff_ = conf.getParameter<double>("d0CutOff");
   dzCutOff_ = conf.getParameter<double>("dzCutOff");
+  mintrkweight_ = conf.getParameter<double>("mintrkweight");
   uniquetrkweight_ = conf.getParameter<double>("uniquetrkweight");
   uniquetrkminp_ = conf.getParameter<double>("uniquetrkminp");
   zmerge_ = conf.getParameter<double>("zmerge");
@@ -1555,6 +1555,7 @@ void DAClusterizerInZ_vect::fillPSetDescription(edm::ParameterSetDescription& de
   desc.add<double>("Tstop", 0.5);
   desc.add<double>("coolingFactor", 0.6);
   desc.add<double>("vertexSize", 0.006);
+  desc.add<double>("mintrkweight", 0.5);
   desc.add<double>("uniquetrkweight", 0.8);
   desc.add<double>("uniquetrkminp", 0.0);
   desc.add<double>("zrange", 4.0);

@@ -45,6 +45,8 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
               config.getParameter<edm::ParameterSet>("TkClusParameters").getParameter<double>("uniquetrkweight"),
           .uniquetrkminp =
               config.getParameter<edm::ParameterSet>("TkClusParameters").getParameter<double>("uniquetrkminp"),
+          .mintrkweight =
+              config.getParameter<edm::ParameterSet>("TkClusParameters").getParameter<double>("mintrkweight"),
           .zmerge = config.getParameter<edm::ParameterSet>("TkClusParameters").getParameter<double>("zmerge"),
           .zrange = config.getParameter<edm::ParameterSet>("TkClusParameters").getParameter<double>("zrange"),
           .convergence_mode =
@@ -63,7 +65,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
       const TrackForVertexDeviceCollection& inputtracks = iEvent.get(trackToken_);
       const BeamSpotDevice& beamSpot = iEvent.get(beamSpotToken_);
       int32_t nT = inputtracks.view().nT();
-      int32_t nBlocks = nT > blockSize_ ? int32_t((nT - 1) / (blockOverlap_ * blockSize_))
+      int32_t nBlocks = nT > blockSize_ ? int32_t((nT - 1) / ((1. - blockOverlap_) * blockSize_))
                                         : 1;  // If all fit within a block, no need to split
       // Now the device collections we still need
       TrackForVertexDeviceCollection tracksInBlocks(iEvent.queue(), nBlocks * blockSize_);  // As high as needed
@@ -115,6 +117,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
       parc0.add<double>("vertexSize", 0.006);
       parc0.add<double>("uniquetrkweight", 0.8);
       parc0.add<double>("uniquetrkminp", 0.0);
+      parc0.add<double>("mintrkweight", 0.5);
       parc0.add<double>("zrange", 4.0);
       desc.add<edm::ParameterSetDescription>("TkClusParameters", parc0);
       descriptions.addWithDefaultLabel(desc);

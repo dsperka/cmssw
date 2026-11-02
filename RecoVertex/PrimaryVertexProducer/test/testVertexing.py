@@ -132,7 +132,8 @@ if args.mode == "Alpaka":
         		zmerge = cms.double(1e-2),        # merge intermediat clusters separated by less than zmerge
         		uniquetrkweight = cms.double(0.8),# require at least two tracks with this weight at T=Tpurge
 	        	uniquetrkminp = cms.double(0.0),  # minimal a priori track weight for counting unique tracks
-    		) 
+	        	mintrkweight = cms.double(0.25),  # minimal probability for a track to be assigned to a vertex
+    		)
     )
 
     process.vertexAoS = cms.EDProducer("SoAToRecoVertexProducer",
@@ -157,6 +158,7 @@ elif args.mode == "InBlocks":
     process.offlinePrimaryVertices.TkClusParameters.TkDAClusParameters.runInBlocks = cms.bool(True)
     process.offlinePrimaryVertices.TkClusParameters.TkDAClusParameters.block_size = cms.uint32(512)
     process.offlinePrimaryVertices.TkClusParameters.TkDAClusParameters.overlap_frac = cms.double(0.5)
+    process.offlinePrimaryVertices.TkClusParameters.TkDAClusParameters.mintrkweight = cms.double(0.25)
     process.offlinePrimaryVertices.vertexCollections = cms.VPSet(
        		[cms.PSet(label=cms.string(""),
            	algorithm=cms.string("WeightedMeanFitter"),
