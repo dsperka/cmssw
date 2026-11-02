@@ -873,8 +873,8 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
            ivertexO < maxVerticesPerBlock * blockIdx + vertices[blockIdx].nV();
            ivertexO++) {
         int ivertex = vertices[ivertexO].order();
-        if (vertices[ivertex].aux1() >= dmax)
-          dmax = vertices[ivertex].aux1();
+        if (abs(vertices[ivertex].aux1()) > dmax)
+          dmax = abs(vertices[ivertex].aux1());
       }
       delta_sum_range += dmax;
       // If a vertex moved too much we reassign
