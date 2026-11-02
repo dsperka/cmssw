@@ -64,17 +64,6 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
       for (auto i : uniform_elements(
                acc,
                nTrueVertex)) {  // By construction nTrueVertex <= 1024, so this will always be a 1 thread to 2 vertex assignment tops
-        // i is a position in order-space (0..nTrueVertex-1 over the compacted good-vertex list),
-        // NOT a raw vertex index -- the nTrueVertex good vertices live at vertices[k].order() for
-        // k=0..nTrueVertex-1, scattered across the full buffer, exactly like everywhere else in
-        // this algorithm (update()/merge()/split()/purge() all translate through .order() the
-        // same way). Indexing vertices[i] directly here processed whatever happened to occupy raw
-        // slots [0, nTrueVertex) -- a mix of genuinely-good vertices and leftover
-        // "merged/purged away" dead slots (isGood()==false, stale/zeroed fields) -- and silently
-        // skipped every genuinely-good vertex whose raw index was >= nTrueVertex, leaving its
-        // errz() (and other fields) at whatever uninitialized/zero value was there before the
-        // fitter ran. That collapses zError() to ~0 for most vertices downstream, which always
-        // fails gen-vertex sigma-significance matching regardless of how accurate the position is.
         int ivertex = vertices[i].order();
         if (not(vertices[ivertex].isGood()))
           continue;  // If vertex was killed before, just skip
@@ -247,13 +236,6 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
           float s_wy = s_wx;
           s_wx += bserrx;
           s_wy += bserry;
-          // Match legacy's WeightedMeanFitter.h safeguard: if every track failed the 3-sigma cut
-          // this iteration (and there's no beamspot term to rescue s_wz), s_wz stays 0 and
-          // z/=s_wz produces NaN/Inf. Legacy explicitly checks for this and discards the vertex
-          // (never includes it in the output) rather than dividing by zero; this port had no such
-          // check, so such vertices got NaN/Inf positions that silently vanish from downstream
-          // DQM histograms (TH1::Fill ignores NaN), quietly cutting otherwise-correctly-clustered
-          // vertices out of the final efficiency count.
           if (s_wx == 0. || s_wy == 0. || s_wz == 0.) {
             fitFailed = true;
             break;
@@ -298,8 +280,6 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
             break;  // If good enough, stop the iterations
         }  // end while
         if (fitFailed) {
-          // Matches legacy: a vertex whose fit failed (all tracks rejected as outliers, or
-          // errors too large) is dropped entirely rather than kept with a NaN/Inf position.
           vertices[ivertex].isGood() = false;
           continue;
         }
