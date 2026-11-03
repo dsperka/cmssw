@@ -213,3 +213,7 @@ if args.dqm:
 ###################################
 # for testing only
 process.schedule.extend([process.endjob_step,process.FEVToutput_step])
+
+# Per-module timing, for comparing clustering/vertexing performance across modes
+process.add_(cms.Service("Timing", summaryOnly=cms.untracked.bool(True)))
+process.options.wantSummary = cms.untracked.bool(True)
