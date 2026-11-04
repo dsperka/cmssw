@@ -40,17 +40,27 @@ check_proxy() {
   fi
 }
 
+# Run a command in the background, streaming its log live via `tail -f`
+# (which exits on its own once the job's PID is gone -- GNU coreutils
+# --pid), then recover the job's real exit code via `wait`.
+run_and_tail() {
+  local log=$1
+  shift
+  "$@" >& "$log" &
+  local pid=$!
+  tail -f --pid="$pid" "$log" 2>/dev/null
+  wait "$pid"
+  return $?
+}
+
 run_mode() {
   local mode=$1
   local extra_args=$2
   local tag=$3
   echo "=== Running $mode ($tag) ==="
-  cmsRun testVertexing.py -m "$mode" -d -i "$INPUT" $extra_args -o "$OUTDIR/${tag}.root" \
-    >& "$OUTDIR/${tag}.log"
+  run_and_tail "$OUTDIR/${tag}.log" \
+    cmsRun testVertexing.py -m "$mode" -d -i "$INPUT" $extra_args -o "$OUTDIR/${tag}.root"
   local rc=$?
-  echo "--- tail of $OUTDIR/${tag}.log ---"
-  tail -n 20 "$OUTDIR/${tag}.log"
-  echo "---"
   if [ $rc -ne 0 ]; then
     echo "!! $mode run failed, see $OUTDIR/${tag}.log" >&2
     return 1
@@ -68,12 +78,9 @@ harvest() {
   echo "=== Harvesting $tag ==="
   echo "file:$OUTDIR/${tag}_DQM.root" > "$OUTDIR/${tag}_DQM_list.txt"
   rm -f DQM_V0001_R000000001__Global__CMSSW_*__RECO.root
-  cmsRun harvester.py inputFileList="$OUTDIR/${tag}_DQM_list.txt" outputFile=unused.root \
-    >& "$OUTDIR/harvest_${tag}.log"
+  run_and_tail "$OUTDIR/harvest_${tag}.log" \
+    cmsRun harvester.py inputFileList="$OUTDIR/${tag}_DQM_list.txt" outputFile=unused.root
   local rc=$?
-  echo "--- tail of $OUTDIR/harvest_${tag}.log ---"
-  tail -n 20 "$OUTDIR/harvest_${tag}.log"
-  echo "---"
   if [ $rc -ne 0 ] || ! ls DQM_V0001_R000000001__Global__CMSSW_*__RECO.root >/dev/null 2>&1; then
     echo "!! Harvest of $tag failed, see $OUTDIR/harvest_${tag}.log" >&2
     return 1
