@@ -143,7 +143,10 @@ if args.mode == "Alpaka":
 		soaVertex = cms.InputTag("vertexSoA"),
     		srcTrack  = cms.InputTag("generalTracks")
     )
-    process.options.accelerators = ["cpu"]
+    if args.backend == "auto":
+        process.options.accelerators = ["*"]
+    else:
+        process.options.accelerators = args.backend.split(",")
     process.vertexing_task = cms.EndPath(process.tracksSoA + process.beamSpotSoA + process.vertexSoA + process.vertexAoS)
     process.schedule = cms.Schedule(process.vertexing_task)
 
