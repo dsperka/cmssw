@@ -191,6 +191,14 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
                                              ClusterParameters const& cParams) {
     int blockSize = alpaka::getWorkDiv<alpaka::Block, alpaka::Threads>(acc)[0u];
     int threadIdx = alpaka::getIdx<alpaka::Block, alpaka::Threads>(acc)[0u];
+    // Per-candidate z uncertainty (inverse-variance combination of its
+    // assigned tracks' oneoverdz2, i.e. 1/sigma_z^2), computed in parallel
+    // below alongside each vertex's track list, then read serially by the
+    // merge decision further down -- that decision has an inherent
+    // left-to-right dependency so it can't itself be parallelized, but
+    // computing each candidate's sigma doesn't depend on that chain at all.
+    constexpr unsigned int maxVerticesInSoA = 1024;
+    auto& sigma_z = alpaka::declareSharedVar<double[maxVerticesInSoA], __COUNTER__>(acc);
     // First put the tracks in vertex SoA
     for (int k = threadIdx; k < vertices[0].nV(); k += blockSize) {
       int ivertex = vertices[k].order();
@@ -215,6 +223,11 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
           vertices[ivertex].ntracks()++;
         }
       }
+      double sum_invvar = 0.;
+      for (int it = 0; it < vertices[ivertex].ntracks(); it++) {
+        sum_invvar += tracks[vertices[ivertex].track_id()[it]].oneoverdz2();
+      }
+      sigma_z[ivertex] = (sum_invvar > 0.) ? sqrt(1. / sum_invvar) : 0.;
       if (vertices[ivertex].ntracks() < 2) {
         vertices[ivertex].isGood() = false;
         continue;
@@ -253,8 +266,18 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
                    k);
           }
 #endif
-        } else if (abs(vertices[thisVertex].z() - vertices[vertices[prevVertex].order()].z()) >
-                   (2 * cParams.vertexSize)) {
+          continue;
+        }
+        int prevVertexO = vertices[prevVertex].order();
+        // Widen the fixed 2*vertexSize merge floor by the combined sigma of
+        // the two candidates (sigma_z filled in parallel above). A real
+        // vertex whose tracks got split across a block overlap seam can
+        // legitimately disagree in z by more than that fixed floor without
+        // being a different vertex -- same fix as the CPU
+        // DAClusterizerInZ_vect::vertices_in_blocks() merge step.
+        double combinedSigma = sqrt(sigma_z[thisVertex] * sigma_z[thisVertex] + sigma_z[prevVertexO] * sigma_z[prevVertexO]);
+        double mergeThreshold = std::max(2 * cParams.vertexSize, 3.0 * combinedSigma);
+        if (abs(vertices[thisVertex].z() - vertices[prevVertexO].z()) > mergeThreshold) {
           // If it is further away enough, it is also good
           vertices[thisVertex].isGood() = true;
 #ifdef DEBUG_RECOVERTEX_PRIMARYVERTEXPRODUCER_ARBITRATOR
@@ -282,7 +305,6 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
           }
 #endif
           vertices[thisVertex].isGood() = false;
-          int prevVertexO = vertices[prevVertex].order();
           for (int itrack = 0; itrack < vertices[thisVertex].ntracks(); itrack += 1) {
             bool isNew = true;
             for (int ivtrack = 0; ivtrack < vertices[prevVertexO].ntracks(); ivtrack++) {
