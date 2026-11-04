@@ -25,6 +25,21 @@ OUTDIR=${3:-gallery_run}
 mkdir -p "$OUTDIR"
 cd "$(dirname "$0")"
 
+check_proxy() {
+  echo "=== Checking grid proxy ==="
+  if voms-proxy-info --exists --valid 1:0 >/dev/null 2>&1; then
+    echo "   OK ($(voms-proxy-info --timeleft 2>/dev/null)s remaining)"
+    return 0
+  fi
+  echo "   No valid grid proxy (or expiring within an hour) -- running voms-proxy-init."
+  echo "   This needs your grid certificate passphrase, entered interactively below."
+  voms-proxy-init --rfc --voms cms -valid 192:00
+  if [ $? -ne 0 ]; then
+    echo "!! voms-proxy-init failed -- can't read input files over xrootd without it." >&2
+    exit 1
+  fi
+}
+
 run_mode() {
   local mode=$1
   local extra_args=$2
@@ -32,7 +47,11 @@ run_mode() {
   echo "=== Running $mode ($tag) ==="
   cmsRun testVertexing.py -m "$mode" -d -i "$INPUT" $extra_args -o "$OUTDIR/${tag}.root" \
     >& "$OUTDIR/${tag}.log"
-  if [ $? -ne 0 ]; then
+  local rc=$?
+  echo "--- tail of $OUTDIR/${tag}.log ---"
+  tail -n 20 "$OUTDIR/${tag}.log"
+  echo "---"
+  if [ $rc -ne 0 ]; then
     echo "!! $mode run failed, see $OUTDIR/${tag}.log" >&2
     return 1
   fi
@@ -51,7 +70,11 @@ harvest() {
   rm -f DQM_V0001_R000000001__Global__CMSSW_*__RECO.root
   cmsRun harvester.py inputFileList="$OUTDIR/${tag}_DQM_list.txt" outputFile=unused.root \
     >& "$OUTDIR/harvest_${tag}.log"
-  if [ $? -ne 0 ] || ! ls DQM_V0001_R000000001__Global__CMSSW_*__RECO.root >/dev/null 2>&1; then
+  local rc=$?
+  echo "--- tail of $OUTDIR/harvest_${tag}.log ---"
+  tail -n 20 "$OUTDIR/harvest_${tag}.log"
+  echo "---"
+  if [ $rc -ne 0 ] || ! ls DQM_V0001_R000000001__Global__CMSSW_*__RECO.root >/dev/null 2>&1; then
     echo "!! Harvest of $tag failed, see $OUTDIR/harvest_${tag}.log" >&2
     return 1
   fi
@@ -59,6 +82,8 @@ harvest() {
   echo "   -> $OUTDIR/${tag}_harvested.root"
   return 0
 }
+
+check_proxy
 
 HAVE_OLD=0
 HAVE_INBLOCKS=0
