@@ -374,6 +374,8 @@ void PrimaryVertexAnalyzer4PUSlimmed::bookHistograms(DQMStore::IBooker& i,
         i.book1D("RecoAllAssoc2GenMatched_Ndof", "ReconstructedAllAssoc2GenMatched_Ndof", 120, 0., 240.);
     mes_[label]["RecoAllAssoc2GenMatched_Chi2Ndof"] =
         i.book1D("RecoAllAssoc2GenMatched_Chi2Ndof", "ReconstructedAllAssoc2GenMatched_Chi2Ndof", 120, 0., 24.);
+    mes_[label]["RecoAllAssoc2GenMatched_ZError"] =
+        i.book1D("RecoAllAssoc2GenMatched_ZError", "ReconstructedAllAssoc2GenMatched_ZError", 100, 0., 0.05);
     mes_[label]["RecoAllAssoc2GenMatched_NumTracks"] = i.book1D(
         "RecoAllAssoc2GenMatched_NumTracks", "ReconstructedAllAssoc2GenMatched_NumTracks", 24, &log_ntrk_bins[0]);
     mes_[label]["RecoAllAssoc2GenMatched_PU"] = i.book1D(
@@ -631,6 +633,7 @@ void PrimaryVertexAnalyzer4PUSlimmed::fillGenAssociatedRecoVertexHistograms(
     mes_[label]["RecoAllAssoc2GenMatched_Chi2"]->Fill(v.recVtx->chi2());
     mes_[label]["RecoAllAssoc2GenMatched_Ndof"]->Fill(v.recVtx->ndof());
     mes_[label]["RecoAllAssoc2GenMatched_Chi2Ndof"]->Fill(v.recVtx->chi2() / v.recVtx->ndof());
+    mes_[label]["RecoAllAssoc2GenMatched_ZError"]->Fill(v.recVtx->zError());
     mes_[label]["RecoAllAssoc2GenMatched_NumTracks"]->Fill(v.nRecoTrk);
     mes_[label]["RecoAllAssoc2GenMatched_PU"]->Fill(num_pileup_vertices);
     mes_[label]["RecoAllAssoc2GenMatched_Purity"]->Fill(v.purity);

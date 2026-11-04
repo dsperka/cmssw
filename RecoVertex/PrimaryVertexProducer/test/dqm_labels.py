@@ -17,6 +17,7 @@ VAR_LABELS = {
     "Chi2": "chi-square",
     "Chi2Ndof": "chi-square / ndof",
     "Ndof": "degrees of freedom",
+    "ZError": "fitted vertex z uncertainty",
     "PullX": "x pull",
     "PullY": "y pull",
     "PullZ": "z pull",
@@ -39,6 +40,7 @@ AXIS_LABELS["Z"] = "Vertex z [cm]"
 AXIS_LABELS["R"] = "Vertex radial distance [cm]"
 AXIS_LABELS["Pt2"] = "Sum p_{T}^{2} of tracks [GeV^{2}]"
 AXIS_LABELS["Pt"] = "Track p_{T} [GeV]"
+AXIS_LABELS["ZError"] = "Fitted vertex z uncertainty [cm]"
 
 RATE_DEFS = {
     "effic_vs_": ("Efficiency", "Fraction of truth vertices with a matching reconstructed vertex."),
