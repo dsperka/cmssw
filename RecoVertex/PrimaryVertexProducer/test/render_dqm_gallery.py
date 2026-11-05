@@ -42,8 +42,9 @@ COLORS = {
     "Old": (ROOT.kBlack, ROOT.kFullCircle),
     "InBlocks": (ROOT.kRed + 1, ROOT.kFullSquare),
     "Alpaka": (ROOT.kAzure + 2, ROOT.kFullTriangleUp),
+    "Alpaka-CPU": (ROOT.kGreen + 2, ROOT.kFullDiamond),
 }
-SERIES_ORDER = ["Old", "InBlocks", "Alpaka"]
+SERIES_ORDER = ["Old", "InBlocks", "Alpaka", "Alpaka-CPU"]
 
 
 def categorize(name):
@@ -78,9 +79,11 @@ def parse_args():
     p.add_argument("--old", help="Old mode harvested DQM root file")
     p.add_argument("--inblocks", help="InBlocks mode harvested DQM root file")
     p.add_argument("--alpaka", help="Alpaka mode harvested DQM root file")
+    p.add_argument("--alpaka-cpu", help="Alpaka mode (SerialSync/CPU backend) harvested DQM root file")
     p.add_argument("--old-collection", default="offlinePrimaryVertices")
     p.add_argument("--inblocks-collection", default="offlinePrimaryVertices")
     p.add_argument("--alpaka-collection", default="vertexAoS")
+    p.add_argument("--alpaka-cpu-collection", default="vertexAoS")
     p.add_argument("--out", default="pv_dqm_gallery.html", help="Output HTML file")
     p.add_argument("--title", default="PrimaryVertexProducer DQM comparison")
     p.add_argument("--subtitle", default="", help="Extra text for the page subtitle")
@@ -96,6 +99,8 @@ def build_series(args):
         series["InBlocks"] = (args.inblocks, args.inblocks_collection)
     if args.alpaka:
         series["Alpaka"] = (args.alpaka, args.alpaka_collection)
+    if args.alpaka_cpu:
+        series["Alpaka-CPU"] = (args.alpaka_cpu, args.alpaka_cpu_collection)
     if len(series) < 2:
         sys.exit("Need at least two of --old/--inblocks/--alpaka to compare.")
     return series
@@ -299,7 +304,7 @@ def build_html(manifest, outdir, series, title, subtitle):
     for label in SERIES_ORDER:
         if label not in series:
             continue
-        color_hex = {"Old": "#000", "InBlocks": "#e3281f", "Alpaka": "#2878c8"}[label]
+        color_hex = {"Old": "#000", "InBlocks": "#e3281f", "Alpaka": "#2878c8", "Alpaka-CPU": "#2ca02c"}[label]
         legend_items.append(f'<span><i class="dot" style="background:{color_hex}"></i> {html.escape(label)}</span>')
 
     CARDS = "\n".join(cards_html)

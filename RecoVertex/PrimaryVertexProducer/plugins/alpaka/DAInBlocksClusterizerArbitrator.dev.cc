@@ -369,6 +369,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
 #ifdef DEBUG_RECOVERTEX_PRIMARYVERTEXPRODUCER_ARBITRATOR
       if (once_per_block(acc)) {
         printf("[DAInBlocksClusterizerAlgoArbitrator::operator()] Vertex reassignment finished\n");
+        printf("[STAGE-CMP] after_resort nV=%d\n", vertices[0].nV());
       }
 #endif
       alpaka::syncBlockThreads(acc);
@@ -376,6 +377,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
 #ifdef DEBUG_RECOVERTEX_PRIMARYVERTEXPRODUCER_ARBITRATOR
       if (once_per_block(acc)) {
         printf("[DAInBlocksClusterizerAlgoArbitrator::operator()] Vertices finalized\n");
+        printf("[STAGE-CMP] arbitrate_final nV=%d\n", vertices[0].nV());
       }
 #endif
       alpaka::syncBlockThreads(acc);

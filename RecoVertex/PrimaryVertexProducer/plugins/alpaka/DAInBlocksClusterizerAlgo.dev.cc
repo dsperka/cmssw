@@ -63,6 +63,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
 #ifdef DEBUG_RECOVERTEX_PRIMARYVERTEXPRODUCER_CLUSTERIZERALGO
       if (once_per_block(acc)) {
         printf("[DAInBlocksClusterizerAlgo::operator()] BlockIdx %i, vertices initialized\n", blockIdx);
+        printf("[STAGE-CMP] after_initialize blockIdx=%d nV=%d\n", blockIdx, vertices[blockIdx].nV());
       }
 #endif
       alpaka::syncBlockThreads(acc);
@@ -74,6 +75,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
         printf("[DAInBlocksClusterizerAlgo::operator()] BlockIdx %i, first estimation of TC beta=%1.8f \n",
                blockIdx,
                beta);
+        printf("[STAGE-CMP] after_getBeta0 blockIdx=%d beta=%.10f nV=%d\n", blockIdx, beta, vertices[blockIdx].nV());
       }
 #endif
       // Cool down to betamax with rho = 0.0 (no regularization term)
@@ -81,6 +83,8 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
 #ifdef DEBUG_RECOVERTEX_PRIMARYVERTEXPRODUCER_CLUSTERIZERALGO
       if (once_per_block(acc)) {
         printf("[DAInBlocksClusterizerAlgo::operator()] BlockIdx %i, first thermalization ended\n", blockIdx);
+        printf(
+            "[STAGE-CMP] after_thermalize blockIdx=%d beta=%.10f nV=%d\n", blockIdx, beta, vertices[blockIdx].nV());
       }
 #endif
       // Now the cooling loop
@@ -90,6 +94,10 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
         printf("[DAInBlocksClusterizerAlgo::operator()] BlockIdx %i, cooling ended, T at stop beta=%1.8f\n",
                blockIdx,
                beta);
+        printf("[STAGE-CMP] after_coolingWhileSplitting blockIdx=%d beta=%.10f nV=%d\n",
+               blockIdx,
+               beta,
+               vertices[blockIdx].nV());
       }
 #endif
       // After cooling, merge closeby vertices
@@ -97,6 +105,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
 #ifdef DEBUG_RECOVERTEX_PRIMARYVERTEXPRODUCER_CLUSTERIZERALGO
       if (once_per_block(acc)) {
         printf("[DAInBlocksClusterizerAlgo::operator()] BlockIdx %i, merge, last merging step done\n", blockIdx);
+        printf("[STAGE-CMP] after_reMergeTracks blockIdx=%d nV=%d\n", blockIdx, vertices[blockIdx].nV());
       }
 #endif
       if (once_per_block(acc)) {
@@ -106,6 +115,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
 #ifdef DEBUG_RECOVERTEX_PRIMARYVERTEXPRODUCER_CLUSTERIZERALGO
       if (once_per_block(acc)) {
         printf("[DAInBlocksClusterizerAlgo::operator()] BlockIdx %i end\n", blockIdx);
+        printf("[STAGE-CMP] clusterize blockIdx=%d nV=%d\n", blockIdx, vertices[blockIdx].nV());
       }
 #endif
     }

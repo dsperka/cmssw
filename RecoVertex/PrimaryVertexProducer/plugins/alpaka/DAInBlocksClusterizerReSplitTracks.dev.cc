@@ -36,6 +36,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
 #ifdef DEBUG_RECOVERTEX_PRIMARYVERTEXPRODUCER_CLUSTERIZERALGO
       if (once_per_block(acc)) {
         printf("[DAInBlocksClusterizerReSplitTracks::operator()] BlockIdx %i, end\n", blockIdx);
+        printf("[STAGE-CMP] resplit_tracks blockIdx=%d nV=%d\n", blockIdx, vertices[blockIdx].nV());
       }
 #endif
       alpaka::syncBlockThreads(acc);

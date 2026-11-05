@@ -38,6 +38,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
 #ifdef DEBUG_RECOVERTEX_PRIMARYVERTEXPRODUCER_CLUSTERIZERALGO
       if (once_per_block(acc)) {
         printf("[DAInBlocksClusterizerAlgoRejectOutliers::operator()] End outlier rejection for block %i\n", blockIdx);
+        printf("[STAGE-CMP] reject_outliers blockIdx=%d nV=%d\n", blockIdx, vertices[blockIdx].nV());
       }
 #endif
       alpaka::syncBlockThreads(acc);

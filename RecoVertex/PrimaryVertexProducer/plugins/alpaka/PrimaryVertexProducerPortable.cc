@@ -17,16 +17,8 @@
 
 namespace ALPAKA_ACCELERATOR_NAMESPACE {
 
-  // Read the nT() scalar of a device track collection safely on the host.
-  // .view().nT() is a scalar SoA column that lives in device memory, so
-  // reading it directly on the host is undefined behaviour on a genuine
-  // device -- it only happened to "work" on SerialSync, where Device ==
-  // DevHost so there is no separate device memory at all, and segfaults on
-  // every real GPU regardless of architecture. TColl is templated (rather
-  // than using TrackForVertexDeviceCollection directly) purely so the
-  // untaken if constexpr branch is dependent and therefore actually
-  // discarded: CopyToHost has no specialization for the SerialSync case,
-  // since there Device IS already DevHost and no copy is needed at all.
+  // Reading nT() directly on host is undefined behavior on a real device (it's device
+  // memory); only "works" by luck on SerialSync, where Device == DevHost.
   template <typename TColl>
   int32_t readNTOnHost(Queue& queue, TColl const& deviceTracks) {
     if constexpr (std::is_same_v<Device, alpaka_common::DevHost>) {

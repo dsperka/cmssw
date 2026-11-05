@@ -289,10 +289,12 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
     auto& critical_index = alpaka::declareSharedVar<int[128], __COUNTER__>(acc);
     int& ncritical = alpaka::declareSharedVar<int, __COUNTER__>(acc);
     if (once_per_block(acc)) {
+      // Only thread 0 runs this, so step by 1: striding by blockSize here (as if all
+      // threads shared the work) skipped most vertices on real GPU.
       ncritical = 0;
-      for (int ivertexO = maxVerticesPerBlock * blockIdx + threadIdx;
+      for (int ivertexO = maxVerticesPerBlock * blockIdx;
            ivertexO < maxVerticesPerBlock * blockIdx + vertices[blockIdx].nV() - 1;
-           ivertexO += blockSize) {
+           ivertexO++) {
         int ivertex = vertices[ivertexO].order();
         if (vertices[ivertex].aux1() < cParams.zmerge) {  // i.e., if we are to split the vertex
           critical_dist[ncritical] = abs(vertices[ivertex].aux1());
@@ -311,19 +313,25 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
       printf("[DAInBlocksClusterizerAlgo::merge()] BlockIdx %i, %i vertices to be merged\n", blockIdx, ncritical);
     }
 #endif
+    int& ikO = alpaka::declareSharedVar<int, __COUNTER__>(acc);
     for (int sortO = 0; sortO < ncritical; ++sortO) {
       // All threads are running the same code, to know when to exit
       if (ncritical == 0 || maxVerticesPerBlock == nprev)
         return;
-      int ikO = 0;
-      double minVal = 999999.;
-      for (int sort1 = 0; sort1 < ncritical; ++sort1) {
-        if (critical_dist[sort1] < minVal) {
-          minVal = critical_dist[sort1];
-          ikO = sort1;
+      // Only one thread picks the next vertex to merge: doing this redundantly on every
+      // thread raced on critical_dist[ikO] (confirmed via compute-sanitizer racecheck).
+      if (once_per_block(acc)) {
+        ikO = 0;
+        double minVal = 999999.;
+        for (int sort1 = 0; sort1 < ncritical; ++sort1) {
+          if (critical_dist[sort1] < minVal) {
+            minVal = critical_dist[sort1];
+            ikO = sort1;
+          }
         }
+        critical_dist[ikO] = 9999999.;
       }
-      critical_dist[ikO] = 9999999.;
+      alpaka::syncBlockThreads(acc);
       int ivertexO = critical_index[ikO];
       int ivertex = vertices[ivertexO].order();
       int ivertexnext = blockIdx * maxVerticesPerBlock + nprev - 1;
@@ -425,10 +433,12 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
     double& w2 = alpaka::declareSharedVar<double, __COUNTER__>(acc);
 
     if (once_per_block(acc)) {
+      // Only thread 0 runs this, so step by 1: striding by blockSize here (as if all
+      // threads shared the work) skipped most vertices on real GPU.
       ncritical = 0;
-      for (int ivertexO = maxVerticesPerBlock * blockIdx + threadIdx;
+      for (int ivertexO = maxVerticesPerBlock * blockIdx;
            ivertexO < maxVerticesPerBlock * blockIdx + vertices[blockIdx].nV();
-           ivertexO += blockSize) {
+           ivertexO++) {
         int ivertex = vertices[ivertexO].order();
         if (vertices[ivertex].aux1() * beta > threshold) {
           critical_temp[ncritical] = abs(vertices[ivertex].aux1());
@@ -447,18 +457,24 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
       printf("[DAInBlocksClusterizerAlgo::split()] BlockIdx %i, split %i vertices\n", blockIdx, ncritical);
     }
 #endif
+    int& ikO = alpaka::declareSharedVar<int, __COUNTER__>(acc);
     for (int sortO = 0; sortO < ncritical; ++sortO) {  // All threads are running the same code, to know when to exit
       if (ncritical == 0 || maxVerticesPerBlock == nprev)
         return;
-      int ikO = 0;
-      double maxVal = -1.;
-      for (int sort1 = 0; sort1 < ncritical; ++sort1) {
-        if (critical_temp[sort1] > maxVal) {
-          maxVal = critical_temp[sort1];
-          ikO = sort1;
+      // Only one thread picks the next vertex to split: doing this redundantly on every
+      // thread raced on critical_temp[ikO] (confirmed via compute-sanitizer racecheck).
+      if (once_per_block(acc)) {
+        ikO = 0;
+        double maxVal = -1.;
+        for (int sort1 = 0; sort1 < ncritical; ++sort1) {
+          if (critical_temp[sort1] > maxVal) {
+            maxVal = critical_temp[sort1];
+            ikO = sort1;
+          }
         }
+        critical_temp[ikO] = -1.;
       }
-      critical_temp[ikO] = -1.;
+      alpaka::syncBlockThreads(acc);
       int ivertexO = critical_index[ikO];
       int ivertex = vertices[ivertexO].order();  // This will be splitted
       int ivertexprev = blockIdx * maxVerticesPerBlock;
@@ -679,11 +695,12 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
     int& k0 = alpaka::declareSharedVar<int, __COUNTER__>(acc);
 
     if (once_per_block(acc)) {
+      // Only thread 0 runs this, so step by 1 (same fix as in split()/merge()).
       double sumpmin = tracks.nT();
       k0 = maxVerticesPerBlock * blockIdx + nprev;
-      for (int ivertexO = maxVerticesPerBlock * blockIdx + threadIdx;
+      for (int ivertexO = maxVerticesPerBlock * blockIdx;
            ivertexO < maxVerticesPerBlock * blockIdx + (int)vertices[blockIdx].nV();
-           ivertexO += blockSize) {
+           ivertexO++) {
         int ivertex = vertices[ivertexO].order();
         if ((vertices[ivertex].aux2() < nunique_min) && (vertices[ivertex].aux1() < sumpmin)) {
           sumpmin = vertices[ivertex].aux1();
