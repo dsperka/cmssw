@@ -389,7 +389,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
   }
 
   template <alpaka::concepts::Acc TAcc>
-  ALPAKA_FN_ACC static void split(const TAcc& acc,
+  ALPAKA_FN_ACC __attribute__((noinline)) static void split(const TAcc& acc,
                                   TrackForVertexDeviceCollection::View tracks,
                                   VertexDeviceCollection::View vertices,
                                   ClusterParameters const& cParams,
@@ -975,7 +975,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
   }  // end reMergeTracks
 
   template <alpaka::concepts::Acc TAcc>
-  ALPAKA_FN_ACC static void reSplitTracks(const TAcc& acc,
+  ALPAKA_FN_ACC __attribute__((noinline)) static void reSplitTracks(const TAcc& acc,
                                           TrackForVertexDeviceCollection::View tracks,
                                           VertexDeviceCollection::View vertices,
                                           ClusterParameters const& cParams,
