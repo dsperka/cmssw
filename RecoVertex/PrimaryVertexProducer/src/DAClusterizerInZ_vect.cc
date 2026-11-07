@@ -20,7 +20,6 @@ using namespace std;
 DAClusterizerInZ_vect::DAClusterizerInZ_vect(const edm::ParameterSet& conf) {
   // hardcoded parameters
   maxIterations_ = 1000;
-  mintrkweight_ = 0.5;
 
   // configurable debug output
 #ifdef DEBUG
@@ -36,6 +35,7 @@ DAClusterizerInZ_vect::DAClusterizerInZ_vect(const edm::ParameterSet& conf) {
   coolingFactor_ = conf.getParameter<double>("coolingFactor");
   d0CutOff_ = conf.getParameter<double>("d0CutOff");
   dzCutOff_ = conf.getParameter<double>("dzCutOff");
+  mintrkweight_ = conf.getParameter<double>("mintrkweight");
   uniquetrkweight_ = conf.getParameter<double>("uniquetrkweight");
   uniquetrkminp_ = conf.getParameter<double>("uniquetrkminp");
   zmerge_ = conf.getParameter<double>("zmerge");
@@ -1218,6 +1218,25 @@ vector<TransientVertex> DAClusterizerInZ_vect::vertices_in_blocks(const vector<r
     return clusters;
   }
 
+  // Approximate per-candidate z uncertainty from the tracks already assigned
+  // to it (inverse-variance combination; tracks_tot.dz2 is 1/sigma_z^2 per
+  // track, despite its header comment). Used below to widen the left-to-right
+  // merge window for candidates built from few/imprecise tracks -- e.g. a
+  // real vertex whose tracks got split across a block boundary, where each
+  // side's independent DA estimate can legitimately disagree by more than
+  // the fixed 2*vertexSize_ floor without being a different vertex.
+  std::vector<double> vtx_sigma_z(nv, 0.0);
+  for (unsigned int k = 0; k < nv; k++) {
+    double sum_invvar = 0.0;
+    for (auto i : vtx_track_indices[k]) {
+      sum_invvar += tracks_tot.dz2[i];
+    }
+    if (sum_invvar > 0.) {
+      vtx_sigma_z[k] = std::sqrt(1. / sum_invvar);
+    }
+  }
+  const double mergeSignificance = 3.0;  // "same vertex" if within this many combined sigma
+
   GlobalError dummyError(0.01, 0, 0.01, 0., 0., 0.01);
   vector<reco::TransientTrack> vertexTracks;
 
@@ -1232,8 +1251,14 @@ vector<TransientVertex> DAClusterizerInZ_vect::vertices_in_blocks(const vector<r
       }
     }
 
-    // implement what clusterize() did before : merge left-to-right if distance < 2 * vertexSize_
-    if ((k + 1 == nv) || (abs(vertices_tot[k + 1].first - vertices_tot[k].first) > (2 * vertexSize_))) {
+    // implement what clusterize() did before : merge left-to-right if distance < 2 * vertexSize_,
+    // widened to mergeSignificance_ combined sigma when that's larger (see vtx_sigma_z above).
+    double mergeThreshold = 2 * vertexSize_;
+    if (k + 1 < nv) {
+      double combinedSigma = std::sqrt(vtx_sigma_z[k] * vtx_sigma_z[k] + vtx_sigma_z[k + 1] * vtx_sigma_z[k + 1]);
+      mergeThreshold = std::max(mergeThreshold, mergeSignificance * combinedSigma);
+    }
+    if ((k + 1 == nv) || (abs(vertices_tot[k + 1].first - vertices_tot[k].first) > mergeThreshold)) {
       // close a cluster
       if (vertexTracks.size() > 1) {
         GlobalPoint pos(0, 0, vertices_tot[k].first);  // only usable with subsequent fit
@@ -1555,6 +1580,7 @@ void DAClusterizerInZ_vect::fillPSetDescription(edm::ParameterSetDescription& de
   desc.add<double>("Tstop", 0.5);
   desc.add<double>("coolingFactor", 0.6);
   desc.add<double>("vertexSize", 0.006);
+  desc.add<double>("mintrkweight", 0.5);
   desc.add<double>("uniquetrkweight", 0.8);
   desc.add<double>("uniquetrkminp", 0.0);
   desc.add<double>("zrange", 4.0);

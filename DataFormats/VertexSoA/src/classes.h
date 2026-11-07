@@ -6,5 +6,9 @@
 #include "DataFormats/VertexSoA/interface/ZVertexHost.h"
 #include "DataFormats/VertexSoA/interface/VertexGNNSoA.h"
 #include "DataFormats/VertexSoA/interface/VertexGNNHostCollection.h"
+#include "DataFormats/VertexSoA/interface/VertexHostCollection.h"
+#include "DataFormats/VertexSoA/interface/VertexSoA.h"
+#include "DataFormats/VertexSoA/interface/TrackForVertexHostCollection.h"
+#include "DataFormats/VertexSoA/interface/TrackForVertexSoA.h"
 
 #endif  // DataFormats_VertexSoA_src_classes_h

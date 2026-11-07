@@ -3,6 +3,8 @@
 <use name="CommonTools/UtilAlgos"/>
 <use name="RecoVertex/PrimaryVertexProducer"/>
 <use name="DataFormats/Common"/>
+<use name="DataFormats/Math"/>
+<use name="DataFormats/VertexReco"/>
 <use name="DataFormats/TrackReco"/>
 <use name="DataFormats/VertexSoA"/>
 <use name="DataFormats/BeamSpot"/>
@@ -28,4 +30,5 @@
   <use name="PhysicsTools/PyTorchAlpaka"/>
   <flags ALPAKA_BACKENDS="1"/>
   <flags EDM_PLUGIN="1"/>
+  <flags CUDA_FLAGS="-Xptxas -maxrregcount=100"/>
 </library>

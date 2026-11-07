@@ -8,5 +8,9 @@
 #include "DataFormats/VertexSoA/interface/alpaka/ZVertexSoACollection.h"
 #include "DataFormats/VertexSoA/interface/VertexGNNSoA.h"
 #include "DataFormats/VertexSoA/interface/alpaka/VertexGNNDeviceCollection.h"
+#include "DataFormats/VertexSoA/interface/VertexSoA.h"
+#include "DataFormats/VertexSoA/interface/alpaka/VertexDeviceCollection.h"
+#include "DataFormats/VertexSoA/interface/TrackForVertexSoA.h"
+#include "DataFormats/VertexSoA/interface/alpaka/TrackForVertexDeviceCollection.h"
 
 #endif  // DataFormats_VertexSoA_src_alpaka_classes_cuda_h
