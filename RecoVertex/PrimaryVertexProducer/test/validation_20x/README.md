@@ -96,7 +96,10 @@ What it shows:
 - `results/summary_per_event_200events.txt`, `results/DQM_6way_harvested_200events.root`: the numbers above and the harvested file (200 events).
   The `*_200events` and plain versions of each file are the 200-event and first-100-event results.
 - `galleries/pv_dqm_gallery_6way_200events.html`: all plots shared by the five collections (self-contained HTML; the plain `pv_dqm_gallery_6way.html` is the 100-event one). `phone/`: phone-sized pages.
-- `render_dqm_gallery.py`, `dqm_labels.py`: the gallery generator. Options added for this work: `--base-dir`, `--display KEY=NAME`, a fifth series (`--extra`).
+- `render_dqm_gallery.py`, `dqm_labels.py`, `mtd_labels.py`: the gallery generator. `mtd_labels.py` gives every MTD validation histogram a plain-language title, an explanatory x-axis and y-axis title
+  and a short description (what is plotted, which vertices and tracks, what the matching does); the original histogram name stays on each card as the subtitle.
+  Options added for this work: `--base-dir`, `--display KEY=NAME`, up to seven series (`--extra`, `--extra2`, `--extra3`).
+  The 100-event gallery (`pv_dqm_gallery_6way.html`) and its phone pages were made before the new labels and show the raw histogram names on the x-axis.
 - `summarize_dqm.py`: the per-event table.
 
 ## Running on lxplus, with a GPU (gives the seven-way comparison)

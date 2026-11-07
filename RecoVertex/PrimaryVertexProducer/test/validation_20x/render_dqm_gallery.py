@@ -33,6 +33,7 @@ import ROOT
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, SCRIPT_DIR)
 import dqm_labels  # noqa: E402
+import mtd_labels  # noqa: E402
 
 ROOT.gROOT.SetBatch(True)
 ROOT.gStyle.SetOptStat(0)
@@ -141,6 +142,20 @@ def parse_args():
     return p.parse_args()
 
 
+def resolve_labels(name, hist=None):
+    """(title, xlabel, ylabel, definition): the DA/vertex-analysis table first, then the MTD table, then the histogram's own axis titles."""
+    title, xlabel, ylabel, definition = dqm_labels.derive(name)
+    if xlabel and xlabel != name:
+        return title, xlabel, ylabel, definition
+    m = mtd_labels.derive(name)
+    if m:
+        return m
+    if hist is not None:
+        own_x, own_y = hist.GetXaxis().GetTitle().strip(), hist.GetYaxis().GetTitle().strip()
+        return (hist.GetTitle() or title), (own_x or xlabel), (own_y or ylabel), definition
+    return title, xlabel, ylabel, definition
+
+
 def build_series(args):
     series = {}
     if args.old:
@@ -238,7 +253,7 @@ def render(series, outdir, label_order):
         ymin_axis = ymin - (ymax - ymin) * 0.15 if ymin < 0 else 0.0
         ymax_axis = ymin_axis + ((ymax - ymin_axis) / 0.66 if ymax > ymin_axis else 1.0)
 
-        _title, xlabel, ylabel, _definition = dqm_labels.derive(name)
+        title, xlabel, ylabel, definition = resolve_labels(name, hists[first_label])
         if not xlabel:
             xlabel = name
 
@@ -264,7 +279,7 @@ def render(series, outdir, label_order):
             h.GetYaxis().SetLabelSize(0.042)
             h.GetXaxis().SetTitle(xlabel)
             h.GetYaxis().SetTitle(ylabel)
-            h.GetXaxis().SetTitleSize(0.046)
+            h.GetXaxis().SetTitleSize(0.046 if len(xlabel) <= 42 else 0.034)
             h.GetYaxis().SetTitleSize(0.046)
             h.GetXaxis().SetTitleOffset(1.35)
             h.GetYaxis().SetTitleOffset(1.55)
@@ -287,6 +302,8 @@ def render(series, outdir, label_order):
             "file": safe_name + ".png",
             "category": categorize(name),
             "class": classmap[name],
+            "title": title,
+            "definition": definition,
         })
 
         if (i + 1) % 50 == 0:
@@ -319,7 +336,9 @@ def build_html(manifest, outdir, series, title, subtitle):
             with open(os.path.join(outdir, item["file"]), "rb") as imgf:
                 b64 = base64.b64encode(imgf.read()).decode("ascii")
             raw_name = item["name"]
-            t, _xlab, _ylab, definition = dqm_labels.derive(raw_name)
+            t, definition = item.get("title"), item.get("definition", "")
+            if not t:
+                t, _xlab, _ylab, definition = dqm_labels.derive(raw_name)
             name = html.escape(raw_name)
             title_esc = html.escape(t)
             def_html = f'<div class="card-def">{html.escape(definition)}</div>' if definition else ""
