@@ -1,0 +1,25 @@
+VERDICT b01_naming_includes: TOLERANT
+VERDICT b02_alpaka_math: TOLERANT
+VERDICT b03a_float_algo: TOLERANT
+VERDICT b03b_float_arbitrator: TOLERANT
+VERDICT b04_named_constants: TOLERANT
+VERDICT b05_split_headers: TOLERANT
+VERDICT b05b_inline_namespace: TOLERANT
+VERDICT b06_acc1d: FAIL
+VERDICT b07_args_by_value: TOLERANT
+VERDICT b08_sync: TOLERANT
+VERDICT b13_flow: TOLERANT
+VERDICT b14_comments: TOLERANT
+VERDICT b15_launch_geometry: TOLERANT
+VERDICT b16a_track_producer: TOLERANT
+VERDICT b16b_readability: TOLERANT
+VERDICT b09_producer: TOLERANT
+VERDICT b12a_track_loops: TOLERANT
+VERDICT b12b_vertex_loops: TOLERANT
+VERDICT b12c_arbitrator_loops: TOLERANT
+VERDICT b10_df_constants: TOLERANT
+VERDICT b17_implicit_copy: BUILD_FAIL (5 errors)
+VERDICT b11_df_namespace: TOLERANT
+VERDICT b17_implicit_copy: BUILD_FAIL (7 errors)
+VERDICT b17_implicit_copy: TOLERANT
+VERDICT b18_code_format: TOLERANT

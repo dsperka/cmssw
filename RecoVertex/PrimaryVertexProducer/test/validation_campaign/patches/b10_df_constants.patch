@@ -1,0 +1,41 @@
+diff -ruN /home/claude/scratch/campaign/snap/pre_b10_df_constants/DataFormats/VertexSoA/interface/TrackForVertexSoA.h /home/claude/scratch/campaign/snap/post_b10_df_constants/DataFormats/VertexSoA/interface/TrackForVertexSoA.h
+--- /home/claude/scratch/campaign/snap/pre_b10_df_constants/DataFormats/VertexSoA/interface/TrackForVertexSoA.h	2026-11-06 13:22:23.564468597 -0500
++++ /home/claude/scratch/campaign/snap/post_b10_df_constants/DataFormats/VertexSoA/interface/TrackForVertexSoA.h	2026-11-07 04:21:24.273012081 -0500
+@@ -6,11 +6,12 @@
+ #include "DataFormats/SoATemplate/interface/SoACommon.h"
+ #include "DataFormats/SoATemplate/interface/SoALayout.h"
+ 
+-namespace {
+-  constexpr int maxTotalVertex = 1024;
+-}
++namespace reco {
++  // Capacity of the per-track vertex vectors in TrackForVertexSoA (maximum number of vertices, in total, that a track can be compared against)
++  constexpr int maxTotalVertexForDeterministicAnnealing = 1024;
++}  // namespace reco
+ 
+-using TrackToVertex = Eigen::Vector<float, maxTotalVertex>;
++using TrackToVertex = Eigen::Vector<float, reco::maxTotalVertexForDeterministicAnnealing>;
+ GENERATE_SOA_LAYOUT(TrackForVertexSoALayout,
+                     // columns: one value per element
+                     SOA_COLUMN(float, dxy2),
+diff -ruN /home/claude/scratch/campaign/snap/pre_b10_df_constants/DataFormats/VertexSoA/interface/VertexSoA.h /home/claude/scratch/campaign/snap/post_b10_df_constants/DataFormats/VertexSoA/interface/VertexSoA.h
+--- /home/claude/scratch/campaign/snap/pre_b10_df_constants/DataFormats/VertexSoA/interface/VertexSoA.h	2026-11-06 13:22:23.565468598 -0500
++++ /home/claude/scratch/campaign/snap/post_b10_df_constants/DataFormats/VertexSoA/interface/VertexSoA.h	2026-11-07 04:21:24.273012081 -0500
+@@ -6,11 +6,12 @@
+ #include "DataFormats/SoATemplate/interface/SoACommon.h"
+ #include "DataFormats/SoATemplate/interface/SoALayout.h"
+ 
+-namespace {
+-  constexpr int maxTracksPerVertex = 1024;
+-}
+-using VertexToTrack = Eigen::Vector<float, maxTracksPerVertex>;
+-using VertexToTrackInt = Eigen::Vector<int, maxTracksPerVertex>;
++namespace reco {
++  // Capacity of the per-vertex track vectors in VertexSoA (maximum tracks a single vertex can hold)
++  constexpr int maxTracksPerVertexForDeterministicAnnealing = 1024;
++}  // namespace reco
++using VertexToTrack = Eigen::Vector<float, reco::maxTracksPerVertexForDeterministicAnnealing>;
++using VertexToTrackInt = Eigen::Vector<int, reco::maxTracksPerVertexForDeterministicAnnealing>;
+ 
+ GENERATE_SOA_LAYOUT(
+     VertexSoALayout,

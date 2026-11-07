@@ -6,10 +6,7 @@
 #include "FWCore/Utilities/interface/InputTag.h"
 #include "HeterogeneousCore/AlpakaCore/interface/alpaka/stream/EDProducer.h"
 #include "HeterogeneousCore/AlpakaCore/interface/alpaka/EDPutToken.h"
-#include "HeterogeneousCore/AlpakaCore/interface/alpaka/ESGetToken.h"
 #include "HeterogeneousCore/AlpakaInterface/interface/config.h"
-
-#include "DataFormats/Math/interface/AlgebraicROOTObjects.h"
 
 #include "TracksForDAInBlocksAlgo.h"
 #include "DAInBlocksClusterizerAlgo.h"
@@ -46,28 +43,23 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
       tracksInBlocksPutToken_ = produces();
       blockSize_ = config.getParameter<int32_t>("blockSize");
       blockOverlap_ = config.getParameter<double>("blockOverlap");
-      clusterParams_ = {
-          .Tmin = config.getParameter<edm::ParameterSet>("TkClusParameters").getParameter<double>("Tmin"),
-          .Tpurge = config.getParameter<edm::ParameterSet>("TkClusParameters").getParameter<double>("Tpurge"),
-          .Tstop = config.getParameter<edm::ParameterSet>("TkClusParameters").getParameter<double>("Tstop"),
-          .vertexSize = config.getParameter<edm::ParameterSet>("TkClusParameters").getParameter<double>("vertexSize"),
-          .coolingFactor =
-              config.getParameter<edm::ParameterSet>("TkClusParameters").getParameter<double>("coolingFactor"),
-          .d0CutOff = config.getParameter<edm::ParameterSet>("TkClusParameters").getParameter<double>("d0CutOff"),
-          .dzCutOff = config.getParameter<edm::ParameterSet>("TkClusParameters").getParameter<double>("dzCutOff"),
-          .uniquetrkweight =
-              config.getParameter<edm::ParameterSet>("TkClusParameters").getParameter<double>("uniquetrkweight"),
-          .uniquetrkminp =
-              config.getParameter<edm::ParameterSet>("TkClusParameters").getParameter<double>("uniquetrkminp"),
-          .mintrkweight =
-              config.getParameter<edm::ParameterSet>("TkClusParameters").getParameter<double>("mintrkweight"),
-          .zmerge = config.getParameter<edm::ParameterSet>("TkClusParameters").getParameter<double>("zmerge"),
-          .zrange = config.getParameter<edm::ParameterSet>("TkClusParameters").getParameter<double>("zrange"),
-          .convergence_mode =
-              config.getParameter<edm::ParameterSet>("TkClusParameters").getParameter<int>("convergence_mode"),
-          .delta_lowT = config.getParameter<edm::ParameterSet>("TkClusParameters").getParameter<double>("delta_lowT"),
-          .delta_highT =
-              config.getParameter<edm::ParameterSet>("TkClusParameters").getParameter<double>("delta_highT")};
+      // Fetch the (not free) ParameterSet once
+      const auto tkClusParameters = config.getParameter<edm::ParameterSet>("TkClusParameters");
+      clusterParams_ = {.Tmin = tkClusParameters.getParameter<double>("Tmin"),
+                        .Tpurge = tkClusParameters.getParameter<double>("Tpurge"),
+                        .Tstop = tkClusParameters.getParameter<double>("Tstop"),
+                        .vertexSize = tkClusParameters.getParameter<double>("vertexSize"),
+                        .coolingFactor = tkClusParameters.getParameter<double>("coolingFactor"),
+                        .d0CutOff = tkClusParameters.getParameter<double>("d0CutOff"),
+                        .dzCutOff = tkClusParameters.getParameter<double>("dzCutOff"),
+                        .uniquetrkweight = tkClusParameters.getParameter<double>("uniquetrkweight"),
+                        .uniquetrkminp = tkClusParameters.getParameter<double>("uniquetrkminp"),
+                        .mintrkweight = tkClusParameters.getParameter<double>("mintrkweight"),
+                        .zmerge = tkClusParameters.getParameter<double>("zmerge"),
+                        .zrange = tkClusParameters.getParameter<double>("zrange"),
+                        .convergence_mode = tkClusParameters.getParameter<int>("convergence_mode"),
+                        .delta_lowT = tkClusParameters.getParameter<double>("delta_lowT"),
+                        .delta_highT = tkClusParameters.getParameter<double>("delta_highT")};
       clusterParams_.uniquetrkminp = clusterParams_.uniquetrkminp * (1 - blockOverlap_);
       fitterParams_ = {
           .useBeamSpotConstraint =
@@ -145,7 +137,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
     int32_t blockSize_;
     double blockOverlap_;
     FitterParameters fitterParams_;
-    ClusterParameters clusterParams_;
+    DAInBlocksClusterParameters clusterParams_;
   };
 
 }  // namespace ALPAKA_ACCELERATOR_NAMESPACE

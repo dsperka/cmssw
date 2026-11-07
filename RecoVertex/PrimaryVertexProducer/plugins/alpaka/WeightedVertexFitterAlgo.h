@@ -22,7 +22,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
              const BeamSpotDevice& deviceBeamSpot);
 
   private:
-    cms::alpakatools::device_buffer<Device, bool> useBeamSpotConstraint;
+    bool useBeamSpotConstraint_;
   };
 
 }  // namespace ALPAKA_ACCELERATOR_NAMESPACE

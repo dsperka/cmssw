@@ -1,0 +1,142 @@
+diff -ruN /home/claude/scratch/campaign/snap/pre_b05b_inline_namespace/RecoVertex/PrimaryVertexProducer/plugins/alpaka/DAInBlocksClusterizerAlgo.dev.cc /home/claude/scratch/campaign/snap/post_b05b_inline_namespace/RecoVertex/PrimaryVertexProducer/plugins/alpaka/DAInBlocksClusterizerAlgo.dev.cc
+--- /home/claude/scratch/campaign/snap/pre_b05b_inline_namespace/RecoVertex/PrimaryVertexProducer/plugins/alpaka/DAInBlocksClusterizerAlgo.dev.cc	2026-11-06 16:29:55.427619994 -0500
++++ /home/claude/scratch/campaign/snap/post_b05b_inline_namespace/RecoVertex/PrimaryVertexProducer/plugins/alpaka/DAInBlocksClusterizerAlgo.dev.cc	2026-11-06 16:47:59.507016123 -0500
+@@ -5,6 +5,7 @@
+ 
+ namespace ALPAKA_ACCELERATOR_NAMESPACE {
+   using namespace cms::alpakatools;
++  using namespace daInBlocks;
+   //////////////////////
+   // Device functions //
+   //////////////////////
+diff -ruN /home/claude/scratch/campaign/snap/pre_b05b_inline_namespace/RecoVertex/PrimaryVertexProducer/plugins/alpaka/DAInBlocksClusterizerMergeSplit.h /home/claude/scratch/campaign/snap/post_b05b_inline_namespace/RecoVertex/PrimaryVertexProducer/plugins/alpaka/DAInBlocksClusterizerMergeSplit.h
+--- /home/claude/scratch/campaign/snap/pre_b05b_inline_namespace/RecoVertex/PrimaryVertexProducer/plugins/alpaka/DAInBlocksClusterizerMergeSplit.h	2026-11-06 16:29:55.427619994 -0500
++++ /home/claude/scratch/campaign/snap/post_b05b_inline_namespace/RecoVertex/PrimaryVertexProducer/plugins/alpaka/DAInBlocksClusterizerMergeSplit.h	2026-11-06 16:47:59.506016123 -0500
+@@ -15,8 +15,10 @@
+ namespace ALPAKA_ACCELERATOR_NAMESPACE {
+   using namespace cms::alpakatools;
+ 
++  namespace daInBlocks {
++
+   template <alpaka::concepts::Acc TAcc>
+-  ALPAKA_FN_ACC __attribute__((noinline)) static void merge(const TAcc& acc,
++  ALPAKA_FN_ACC __attribute__((noinline)) inline void merge(const TAcc& acc,
+                                   TrackForVertexDeviceCollection::View tracks,
+                                   VertexDeviceCollection::View vertices,
+                                   DAInBlocksClusterParameters const& cParams,
+@@ -157,7 +159,7 @@
+   }
+ 
+   template <alpaka::concepts::Acc TAcc>
+-  ALPAKA_FN_ACC __attribute__((noinline)) static void split(const TAcc& acc,
++  ALPAKA_FN_ACC __attribute__((noinline)) inline void split(const TAcc& acc,
+                                   TrackForVertexDeviceCollection::View tracks,
+                                   VertexDeviceCollection::View vertices,
+                                   DAInBlocksClusterParameters const& cParams,
+@@ -402,7 +404,7 @@
+   }
+ 
+   template <alpaka::concepts::Acc TAcc>
+-  ALPAKA_FN_ACC __attribute__((noinline)) static void purge(const TAcc& acc,
++  ALPAKA_FN_ACC __attribute__((noinline)) inline void purge(const TAcc& acc,
+                                   TrackForVertexDeviceCollection::View tracks,
+                                   VertexDeviceCollection::View vertices,
+                                   DAInBlocksClusterParameters const& cParams,
+@@ -506,6 +508,8 @@
+     }
+   }
+ 
++  }  // namespace daInBlocks
++
+ }  // namespace ALPAKA_ACCELERATOR_NAMESPACE
+ 
+ #endif  // RecoVertex_PrimaryVertexProducer_plugins_alpaka_DAInBlocksClusterizerMergeSplit_h
+diff -ruN /home/claude/scratch/campaign/snap/pre_b05b_inline_namespace/RecoVertex/PrimaryVertexProducer/plugins/alpaka/DAInBlocksClusterizerPrimitives.h /home/claude/scratch/campaign/snap/post_b05b_inline_namespace/RecoVertex/PrimaryVertexProducer/plugins/alpaka/DAInBlocksClusterizerPrimitives.h
+--- /home/claude/scratch/campaign/snap/pre_b05b_inline_namespace/RecoVertex/PrimaryVertexProducer/plugins/alpaka/DAInBlocksClusterizerPrimitives.h	2026-11-06 16:29:55.427619994 -0500
++++ /home/claude/scratch/campaign/snap/post_b05b_inline_namespace/RecoVertex/PrimaryVertexProducer/plugins/alpaka/DAInBlocksClusterizerPrimitives.h	2026-11-06 16:47:59.506016123 -0500
+@@ -14,9 +14,11 @@
+ namespace ALPAKA_ACCELERATOR_NAMESPACE {
+   using namespace cms::alpakatools;
+ 
++  namespace daInBlocks {
++
+   #ifdef DEBUG_RECOVERTEX_PRIMARYVERTEXPRODUCER_CLUSTERIZERALGO
+   template <alpaka::concepts::Acc TAcc>
+-  ALPAKA_FN_ACC static void dump(const TAcc& acc, double& beta, VertexDeviceCollection::View vertices) {
++  ALPAKA_FN_ACC inline void dump(const TAcc& acc, double& beta, VertexDeviceCollection::View vertices) {
+     int blockIdx = alpaka::getIdx<alpaka::Grid, alpaka::Blocks>(acc)[0u];
+     int maxVerticesPerBlock =
+         (int)1024 / alpaka::getWorkDiv<alpaka::Grid, alpaka::Blocks>(
+@@ -44,7 +46,7 @@
+   #endif  // DEBUG_RECOVERTEX_PRIMARYVERTEXPRODUCER_CLUSTERIZERALGO
+ 
+   template <alpaka::concepts::Acc TAcc>
+-  ALPAKA_FN_ACC __attribute__((noinline)) static void set_vtx_range(const TAcc& acc,
++  ALPAKA_FN_ACC __attribute__((noinline)) inline void set_vtx_range(const TAcc& acc,
+                                           TrackForVertexDeviceCollection::View tracks,
+                                           VertexDeviceCollection::View vertices,
+                                           DAInBlocksClusterParameters const& cParams,
+@@ -110,7 +112,7 @@
+   }
+ 
+   template <alpaka::concepts::Acc TAcc>
+-  ALPAKA_FN_ACC __attribute__((noinline)) static void update(const TAcc& acc,
++  ALPAKA_FN_ACC __attribute__((noinline)) inline void update(const TAcc& acc,
+                                    TrackForVertexDeviceCollection::View tracks,
+                                    VertexDeviceCollection::View vertices,
+                                    DAInBlocksClusterParameters const& cParams,
+@@ -197,6 +199,8 @@
+     alpaka::syncBlockThreads(acc);
+   }  //end update
+ 
++  }  // namespace daInBlocks
++
+ }  // namespace ALPAKA_ACCELERATOR_NAMESPACE
+ 
+ #endif  // RecoVertex_PrimaryVertexProducer_plugins_alpaka_DAInBlocksClusterizerPrimitives_h
+diff -ruN /home/claude/scratch/campaign/snap/pre_b05b_inline_namespace/RecoVertex/PrimaryVertexProducer/plugins/alpaka/DAInBlocksClusterizerRejectOutliers.dev.cc /home/claude/scratch/campaign/snap/post_b05b_inline_namespace/RecoVertex/PrimaryVertexProducer/plugins/alpaka/DAInBlocksClusterizerRejectOutliers.dev.cc
+--- /home/claude/scratch/campaign/snap/pre_b05b_inline_namespace/RecoVertex/PrimaryVertexProducer/plugins/alpaka/DAInBlocksClusterizerRejectOutliers.dev.cc	2026-11-06 16:29:55.427619994 -0500
++++ /home/claude/scratch/campaign/snap/post_b05b_inline_namespace/RecoVertex/PrimaryVertexProducer/plugins/alpaka/DAInBlocksClusterizerRejectOutliers.dev.cc	2026-11-06 16:47:59.507016123 -0500
+@@ -5,6 +5,7 @@
+ 
+ namespace ALPAKA_ACCELERATOR_NAMESPACE {
+   using namespace cms::alpakatools;
++  using namespace daInBlocks;
+   //////////////////////
+   // Device functions //
+   //////////////////////
+diff -ruN /home/claude/scratch/campaign/snap/pre_b05b_inline_namespace/RecoVertex/PrimaryVertexProducer/plugins/alpaka/DAInBlocksClusterizerReSplitTracks.dev.cc /home/claude/scratch/campaign/snap/post_b05b_inline_namespace/RecoVertex/PrimaryVertexProducer/plugins/alpaka/DAInBlocksClusterizerReSplitTracks.dev.cc
+--- /home/claude/scratch/campaign/snap/pre_b05b_inline_namespace/RecoVertex/PrimaryVertexProducer/plugins/alpaka/DAInBlocksClusterizerReSplitTracks.dev.cc	2026-11-06 16:29:55.427619994 -0500
++++ /home/claude/scratch/campaign/snap/post_b05b_inline_namespace/RecoVertex/PrimaryVertexProducer/plugins/alpaka/DAInBlocksClusterizerReSplitTracks.dev.cc	2026-11-06 16:47:59.507016123 -0500
+@@ -5,6 +5,7 @@
+ 
+ namespace ALPAKA_ACCELERATOR_NAMESPACE {
+   using namespace cms::alpakatools;
++  using namespace daInBlocks;
+   //////////////////////
+   // Device functions //
+   //////////////////////
+diff -ruN /home/claude/scratch/campaign/snap/pre_b05b_inline_namespace/RecoVertex/PrimaryVertexProducer/plugins/alpaka/DAInBlocksClusterizerThermalize.h /home/claude/scratch/campaign/snap/post_b05b_inline_namespace/RecoVertex/PrimaryVertexProducer/plugins/alpaka/DAInBlocksClusterizerThermalize.h
+--- /home/claude/scratch/campaign/snap/pre_b05b_inline_namespace/RecoVertex/PrimaryVertexProducer/plugins/alpaka/DAInBlocksClusterizerThermalize.h	2026-11-06 16:29:55.427619994 -0500
++++ /home/claude/scratch/campaign/snap/post_b05b_inline_namespace/RecoVertex/PrimaryVertexProducer/plugins/alpaka/DAInBlocksClusterizerThermalize.h	2026-11-06 16:47:59.506016123 -0500
+@@ -15,8 +15,10 @@
+ namespace ALPAKA_ACCELERATOR_NAMESPACE {
+   using namespace cms::alpakatools;
+ 
++  namespace daInBlocks {
++
+   template <alpaka::concepts::Acc TAcc>
+-  ALPAKA_FN_ACC __attribute__((noinline)) static void thermalize(const TAcc& acc,
++  ALPAKA_FN_ACC __attribute__((noinline)) inline void thermalize(const TAcc& acc,
+                                        TrackForVertexDeviceCollection::View tracks,
+                                        VertexDeviceCollection::View vertices,
+                                        DAInBlocksClusterParameters const& cParams,
+@@ -97,6 +99,8 @@
+     }  // end while
+   }  // thermalize
+ 
++  }  // namespace daInBlocks
++
+ }  // namespace ALPAKA_ACCELERATOR_NAMESPACE
+ 
+ #endif  // RecoVertex_PrimaryVertexProducer_plugins_alpaka_DAInBlocksClusterizerThermalize_h

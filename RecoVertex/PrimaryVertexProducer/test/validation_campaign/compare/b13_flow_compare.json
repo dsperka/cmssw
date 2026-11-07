@@ -1,0 +1,51 @@
+{
+ "overall": "TOLERANT",
+ "detail": {
+  "cpu": {
+   "n": 311,
+   "differing": 46,
+   "worst_metric_delta": 0.0,
+   "metrics": {
+    "effic_vs_Z": 0.0,
+    "fakerate_vs_Z": 0.0,
+    "merged_vs_Z": 0.0,
+    "duplicate_vs_Z": 0.0,
+    "gen_duplicate_vs_Z": 0.0,
+    "PV_purity_vs_Z": 0.0
+   },
+   "sample": [
+    "RecoAllAssoc2GenMatched_Chi2Ndof",
+    "RecoAllAssoc2GenMatched_NumTracks",
+    "RecoAllAssoc2GenMatched_PullX_vs_NumTracks_Mean",
+    "RecoAllAssoc2GenMatched_PullX_vs_NumTracks_Sigma",
+    "RecoAllAssoc2GenMatched_PullX_vs_Pt_Mean",
+    "RecoAllAssoc2GenMatched_PullX_vs_Pt_Sigma",
+    "RecoAllAssoc2GenMatched_PullY",
+    "RecoAllAssoc2GenMatched_PullY_vs_NumTracks_Mean"
+   ]
+  },
+  "gpu": {
+   "n": 311,
+   "differing": 152,
+   "worst_metric_delta": 0.0,
+   "metrics": {
+    "effic_vs_Z": 0.0,
+    "fakerate_vs_Z": 0.0,
+    "merged_vs_Z": 0.0,
+    "duplicate_vs_Z": 0.0,
+    "gen_duplicate_vs_Z": 0.0,
+    "PV_purity_vs_Z": 0.0
+   },
+   "sample": [
+    "RecoAllAssoc2GenMatchedMerged_PullX_vs_Pt_Mean",
+    "RecoAllAssoc2GenMatchedMerged_PullX_vs_Pt_Sigma",
+    "RecoAllAssoc2GenMatchedMerged_PullY",
+    "RecoAllAssoc2GenMatchedMerged_PullY_vs_NumTracks_Mean",
+    "RecoAllAssoc2GenMatchedMerged_PullY_vs_NumTracks_Sigma",
+    "RecoAllAssoc2GenMatchedMerged_PullY_vs_Pt_Mean",
+    "RecoAllAssoc2GenMatchedMerged_PullY_vs_Pt_Sigma",
+    "RecoAllAssoc2GenMatchedMerged_PullY_vs_Z_Mean"
+   ]
+  }
+ }
+}

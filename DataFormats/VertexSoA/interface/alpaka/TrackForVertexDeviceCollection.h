@@ -7,9 +7,9 @@
 #include "HeterogeneousCore/AlpakaInterface/interface/config.h"
 
 namespace ALPAKA_ACCELERATOR_NAMESPACE {
-  using ::TrackForVertexHostCollection;
+  using ::reco::TrackForVertexHostCollection;
 
-  using TrackForVertexDeviceCollection = PortableCollection<::TrackForVertexSoA>;
+  using TrackForVertexDeviceCollection = PortableCollection<::reco::TrackForVertexSoA>;
 
 }  // namespace ALPAKA_ACCELERATOR_NAMESPACE
 

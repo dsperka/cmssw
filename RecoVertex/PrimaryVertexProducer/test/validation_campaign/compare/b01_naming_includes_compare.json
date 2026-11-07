@@ -1,0 +1,42 @@
+{
+ "overall": "TOLERANT",
+ "detail": {
+  "cpu": {
+   "n": 311,
+   "differing": 0,
+   "worst_metric_delta": 0.0,
+   "metrics": {
+    "effic_vs_Z": 0.0,
+    "fakerate_vs_Z": 0.0,
+    "merged_vs_Z": 0.0,
+    "duplicate_vs_Z": 0.0,
+    "gen_duplicate_vs_Z": 0.0,
+    "PV_purity_vs_Z": 0.0
+   },
+   "sample": []
+  },
+  "gpu": {
+   "n": 311,
+   "differing": 59,
+   "worst_metric_delta": 0.0,
+   "metrics": {
+    "effic_vs_Z": 0.0,
+    "fakerate_vs_Z": 0.0,
+    "merged_vs_Z": 0.0,
+    "duplicate_vs_Z": 0.0,
+    "gen_duplicate_vs_Z": 0.0,
+    "PV_purity_vs_Z": 0.0
+   },
+   "sample": [
+    "RecoAllAssoc2GenMatched_Chi2",
+    "RecoAllAssoc2GenMatched_Ndof",
+    "RecoAllAssoc2GenMatched_NumTracks",
+    "RecoAllAssoc2GenMatched_Pt2",
+    "RecoAllAssoc2GenMatched_PullX",
+    "RecoAllAssoc2GenMatched_PullX_vs_NumTracks_Mean",
+    "RecoAllAssoc2GenMatched_PullX_vs_NumTracks_Sigma",
+    "RecoAllAssoc2GenMatched_PullX_vs_Pt_Mean"
+   ]
+  }
+ }
+}

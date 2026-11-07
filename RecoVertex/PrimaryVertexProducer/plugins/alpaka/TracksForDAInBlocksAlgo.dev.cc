@@ -1,16 +1,15 @@
 #include <alpaka/alpaka.hpp>
-#include <cmath>
 #include "HeterogeneousCore/AlpakaInterface/interface/config.h"
 #include "HeterogeneousCore/AlpakaInterface/interface/workdivision.h"
 
-#include "RecoVertex/PrimaryVertexProducer/plugins/alpaka/TracksForDAInBlocksAlgo.h"
+#include "TracksForDAInBlocksAlgo.h"
 
 //#define DEBUG_RECOVERTEX_PRIMARYVERTEXPRODUCERPORTABLE_BLOCKALGO 1
 
 namespace ALPAKA_ACCELERATOR_NAMESPACE {
   using namespace cms::alpakatools;
 
-  class createBlocksKernel {
+  class CreateBlocksKernel {
   public:
     template <alpaka::concepts::Acc TAcc>
     ALPAKA_FN_ACC void operator()(const TAcc& acc,
@@ -34,12 +33,12 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
       printf("[TracksForDAInBlocksAlgo::operator()] Will create nBlocks: %i\n", nBlocks);
 #endif
       int32_t overlapStart = (1. - blockOverlap) * blockSize;
-      for (auto iNewTrack : uniform_elements(
-               acc,
-               blockSize)) {  // The accelerator has as much threads as blockSize, so each thread will enter once on each block
-        for (int32_t iblock = 0; iblock < nBlocks; iblock++) {  // Each thread will create -up to- one track per block
-          int32_t oldIndex = (iblock * overlapStart) +
-                             iNewTrack;  // I.e. first track in the block in which we are + thread in which we are
+      // The accelerator has as many threads as blockSize, so each thread will enter once on each block
+      for (auto iNewTrack : uniform_elements(acc, blockSize)) {
+        // Each thread will create -up to- one track per block
+        for (int32_t iblock = 0; iblock < nBlocks; iblock++) {
+          // I.e. first track in the block in which we are + thread in which we are
+          int32_t oldIndex = (iblock * overlapStart) + iNewTrack;
           if (oldIndex >= nTOld)
             break;  // I.e. we reached the end of the input block
           int32_t newIndex = iNewTrack + iblock * blockSize;
@@ -80,10 +79,11 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
         trackInBlocks.nT() =
             (int32_t)(nBlocks * blockSize + nTOld -
                       (1. - blockOverlap) * blockSize *
-                          std::ceil(
+                          alpaka::math::ceil(
+                              acc,
                               nTOld /
-                              ((1. - blockOverlap) *
-                               blockSize)));  // The new number of tracks has to account for the fact that we overlapped
+                                  ((1. - blockOverlap) *
+                                   blockSize)));  // The new number of tracks has to account for the fact that we overlapped
 #ifdef DEBUG_RECOVERTEX_PRIMARYVERTEXPRODUCERPORTABLE_BLOCKALGO
         printf("[TracksForDAInBlocksAlgo::operator()] Set nTracks to %i\n", trackInBlocks.nT());
 #endif
@@ -91,8 +91,8 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
 #ifdef DEBUG_RECOVERTEX_PRIMARYVERTEXPRODUCERPORTABLE_BLOCKALGO
       printf("[TracksForDAInBlocksAlgo::operator()] End\n");
 #endif
-    }  // createBlocksKernel::operator()
-  };  // class createBlocksKernel
+    }  // CreateBlocksKernel::operator()
+  };  // class CreateBlocksKernel
 
   TracksForDAInBlocksAlgo::TracksForDAInBlocksAlgo() {}  // TracksForDAInBlocksAlgo::TracksForDAInBlocksAlgo
 
@@ -105,7 +105,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
     const int blocks = 1;               // 1 block with all threads
     alpaka::exec<Acc1D>(queue,
                         make_workdiv<Acc1D>(blocks, threadsPerBlock),
-                        createBlocksKernel{},
+                        CreateBlocksKernel{},
                         inputTracks.view(),
                         trackInBlocks.view(),
                         bOverlap,

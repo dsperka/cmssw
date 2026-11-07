@@ -1,0 +1,306 @@
+diff -ruN /home/claude/scratch/campaign/snap/pre_b02_alpaka_math/RecoVertex/PrimaryVertexProducer/plugins/alpaka/DAInBlocksClusterizerAlgo.h /home/claude/scratch/campaign/snap/post_b02_alpaka_math/RecoVertex/PrimaryVertexProducer/plugins/alpaka/DAInBlocksClusterizerAlgo.h
+--- /home/claude/scratch/campaign/snap/pre_b02_alpaka_math/RecoVertex/PrimaryVertexProducer/plugins/alpaka/DAInBlocksClusterizerAlgo.h	2026-11-06 14:25:08.342755669 -0500
++++ /home/claude/scratch/campaign/snap/post_b02_alpaka_math/RecoVertex/PrimaryVertexProducer/plugins/alpaka/DAInBlocksClusterizerAlgo.h	2026-11-06 14:45:48.800102733 -0500
+@@ -119,10 +119,10 @@
+     for (int itrack = threadIdx + blockIdx * trackBlockSize; itrack < threadIdx + (blockIdx + 1) * trackBlockSize;
+          itrack += blockSize) {
+       // Based on current temperature (regularization term) and track position uncertainty, only keep relevant vertices
+-      double zrange = std::max(cParams.zrange / sqrt((beta)*tracks[itrack].oneoverdz2()), zrange_min_);
++      double zrange = alpaka::math::max(acc, cParams.zrange / alpaka::math::sqrt(acc, (beta)*tracks[itrack].oneoverdz2()), zrange_min_);
+       double zmin = tracks[itrack].z() - zrange;
+       // First the lower bound
+-      int kmin = std::min((int)(maxVerticesPerBlock * blockIdx) + vertices.nV(blockIdx) - 1, tracks[itrack].kmin());
++      int kmin = alpaka::math::min(acc, (int)(maxVerticesPerBlock * blockIdx) + vertices.nV(blockIdx) - 1, tracks[itrack].kmin());
+       // If the vertex position in z is bigger than the minimum, go down through all vertices position until finding one that is too far
+       if (vertices[vertices[kmin].order()].z() > zmin) {
+         // i.e., while we find another vertex within range that is before the previous initial step
+@@ -138,8 +138,8 @@
+ 
+       // And now do the same for the upper bound
+       double zmax = tracks[itrack].z() + zrange;
+-      int kmax = std::max(0,
+-                          std::min(maxVerticesPerBlock * blockIdx + (int)(vertices[blockIdx].nV()) - 1,
++      int kmax = alpaka::math::max(acc, 0,
++                          alpaka::math::min(acc, maxVerticesPerBlock * blockIdx + (int)(vertices[blockIdx].nV()) - 1,
+                                    (int)(tracks[itrack].kmax()) - 1));
+       // For corner cases in which we purged the first vertex, thus not properly updating kmax during purging
+       while (vertices[kmax].order() == 9999)
+@@ -159,9 +159,9 @@
+         tracks[itrack].kmin() = (int)kmin;
+         tracks[itrack].kmax() = (int)kmax + 1;
+       } else {  // Track goes to the most extreme cases if no associated one is found
+-        tracks[itrack].kmin() = (int)std::max(maxVerticesPerBlock * blockIdx, (int)std::min(kmin, kmax));
+-        tracks[itrack].kmax() = (int)std::min((maxVerticesPerBlock * blockIdx) + (int)vertices[blockIdx].nV(),
+-                                              (int)std::max(kmin, kmax) + 1);
++        tracks[itrack].kmin() = (int)alpaka::math::max(acc, maxVerticesPerBlock * blockIdx, (int)alpaka::math::min(acc, kmin, kmax));
++        tracks[itrack].kmax() = (int)alpaka::math::min(acc, (maxVerticesPerBlock * blockIdx) + (int)vertices[blockIdx].nV(),
++                                              (int)alpaka::math::max(acc, kmin, kmax) + 1);
+       }
+     }  //end for
+     alpaka::syncBlockThreads(acc);
+@@ -184,7 +184,7 @@
+     int maxVerticesPerBlock = (int)1024 / alpaka::getWorkDiv<alpaka::Grid, alpaka::Blocks>(
+                                               acc)[0u];  // Max vertices size is 1024 over number of blocks in grid
+     // Initial partition function, really only used on the outlier rejection step to penalize
+-    double Zinit = rho0 * exp(-(beta)*cParams.dzCutOff * cParams.dzCutOff);
++    double Zinit = rho0 * alpaka::math::exp(acc, -(beta)*cParams.dzCutOff * cParams.dzCutOff);
+     for (int itrack = threadIdx + blockIdx * trackBlockSize; itrack < threadIdx + (blockIdx + 1) * trackBlockSize;
+          itrack += blockSize) {
+       double botrack_dz2 = -(beta)*tracks[itrack].oneoverdz2();
+@@ -195,10 +195,10 @@
+           continue;
+         // Z_t = sum_v pho_v * e^{-beta*(z_t-z_v)/dz^2}, partition function of the track
+         tracks[itrack].sum_Z() +=
+-            vertices[ivertex].rho() * exp(botrack_dz2 * (tracks[itrack].z() - vertices[ivertex].z()) *
++            vertices[ivertex].rho() * alpaka::math::exp(acc, botrack_dz2 * (tracks[itrack].z() - vertices[ivertex].z()) *
+                                           (tracks[itrack].z() - vertices[ivertex].z()));
+       }  //end vertex for
+-      if (not(std::isfinite(tracks[itrack].sum_Z())))
++      if (not(alpaka::math::isfinite(acc, tracks[itrack].sum_Z())))
+         tracks[itrack].sum_Z() = 0;
+       if (tracks[itrack].sum_Z() > 1e-40) {  // If non-zero then the track has a non-trivial assignment to a vertex
+         double sumw = tracks[itrack].weight() / (double)tracks[itrack].sum_Z();
+@@ -208,7 +208,7 @@
+             continue;
+           double vert_exparg = botrack_dz2 * (tracks[itrack].z() - vertices[ivertex].z()) *
+                                (tracks[itrack].z() - vertices[ivertex].z());  // -beta*(z_t-z_v)/dz^2
+-          double vert_exp = exp(vert_exparg);                                 // e^{-beta*(z_t-z_v)/dz^2}
++          double vert_exp = alpaka::math::exp(acc, vert_exparg);                                 // e^{-beta*(z_t-z_v)/dz^2}
+           tracks[itrack].vert_se()[ivertex] =
+               vert_exp * sumw;  // From partition of track to contribution of track to vertex partition
+           double w = vertices[ivertex].rho() * vert_exp * sumw * tracks[itrack].oneoverdz2();
+@@ -281,7 +281,7 @@
+          ivertexO += blockSize) {
+       int ivertex = vertices[ivertexO].order();
+       int ivertexnext = vertices[ivertexO + 1].order();
+-      vertices[ivertex].aux1() = abs(vertices[ivertex].z() - vertices[ivertexnext].z());
++      vertices[ivertex].aux1() = alpaka::math::abs(acc, vertices[ivertex].z() - vertices[ivertexnext].z());
+     }
+     alpaka::syncBlockThreads(acc);
+     // Sorter things
+@@ -297,7 +297,7 @@
+            ivertexO++) {
+         int ivertex = vertices[ivertexO].order();
+         if (vertices[ivertex].aux1() < cParams.zmerge) {  // i.e., if we are to split the vertex
+-          critical_dist[ncritical] = abs(vertices[ivertex].aux1());
++          critical_dist[ncritical] = alpaka::math::abs(acc, vertices[ivertex].aux1());
+           critical_index[ncritical] = ivertexO;
+           ncritical++;
+           if (ncritical > 128)
+@@ -441,7 +441,7 @@
+            ivertexO++) {
+         int ivertex = vertices[ivertexO].order();
+         if (vertices[ivertex].aux1() * beta > threshold) {
+-          critical_temp[ncritical] = abs(vertices[ivertex].aux1());
++          critical_temp[ncritical] = alpaka::math::abs(acc, vertices[ivertex].aux1());
+           critical_index[ncritical] = ivertexO;
+           ncritical++;
+           if (ncritical > 128)
+@@ -505,15 +505,15 @@
+           double tl = tracks[itrack].z() < vertices[ivertex].z() ? 1. : 0.;
+           double tr = 1. - tl;
+           // soften it, especially at low T
+-          double arg = (tracks[itrack].z() - vertices[ivertex].z()) * sqrt((beta)*tracks[itrack].oneoverdz2());
+-          if (abs(arg) < 20) {
+-            double t = exp(-arg);
++          double arg = (tracks[itrack].z() - vertices[ivertex].z()) * alpaka::math::sqrt(acc, (beta)*tracks[itrack].oneoverdz2());
++          if (alpaka::math::abs(acc, arg) < 20) {
++            double t = alpaka::math::exp(acc, -arg);
+             tl = t / (t + 1.);
+             tr = 1 / (t + 1.);
+           }
+           // Recompute split vertex quantities
+           double p = vertices[ivertex].rho() * tracks[itrack].weight() *
+-                     exp(-(beta) * (tracks[itrack].z() - vertices[ivertex].z()) *
++                     alpaka::math::exp(acc, -(beta) * (tracks[itrack].z() - vertices[ivertex].z()) *
+                          (tracks[itrack].z() - vertices[ivertex].z()) * tracks[itrack].oneoverdz2()) /
+                      tracks[itrack].sum_Z();
+           double w = p * tracks[itrack].oneoverdz2();
+@@ -658,7 +658,7 @@
+       return;
+     double eps = 1e-40;
+     int nunique_min = 2;
+-    double rhoconst = rho0 * exp(-beta * (cParams.dzCutOff * cParams.dzCutOff));
++    double rhoconst = rho0 * alpaka::math::exp(acc, -beta * (cParams.dzCutOff * cParams.dzCutOff));
+     int nprev = vertices[blockIdx].nV();
+     // Reassign
+     set_vtx_range(acc, tracks, vertices, cParams, osumtkwt, beta, trackBlockSize);
+@@ -680,7 +680,7 @@
+         int ivertex = vertices[ivertexO].order();
+         double ppcut = cParams.uniquetrkweight * vertices[ivertex].rho() / (vertices[ivertex].rho() + rhoconst);
+         double track_vertex_aux1 =
+-            exp(-(beta)*tracks[itrack].oneoverdz2() *
++            alpaka::math::exp(acc, -(beta)*tracks[itrack].oneoverdz2() *
+                 ((tracks[itrack].z() - vertices[ivertex].z()) * (tracks[itrack].z() - vertices[ivertex].z())));
+         float p =
+             vertices[ivertex].rho() * track_vertex_aux1 * track_aux1;  // The whole track-vertex P_ij = rho_j*p_ij*p_i
+@@ -840,9 +840,9 @@
+       beta = 2 * znew / wnew;  // 1/beta_C, or T_C
+       if (beta > cParams.Tmin) {
+         int coolingsteps =
+-            1 - int(std::log(beta / cParams.Tmin) /
+-                    std::log(cParams.coolingFactor));  // A tricky conversion to round the number of cooling steps
+-        beta = std::pow(cParams.coolingFactor, coolingsteps) / cParams.Tmin;
++            1 - int(alpaka::math::log(acc, beta / cParams.Tmin) /
++                    alpaka::math::log(acc, cParams.coolingFactor));  // A tricky conversion to round the number of cooling steps
++        beta = alpaka::math::pow(acc, cParams.coolingFactor, coolingsteps) / cParams.Tmin;
+       } else {
+         beta = cParams.coolingFactor / cParams.Tmin;
+       }
+@@ -869,7 +869,7 @@
+     if (cParams.convergence_mode == 0) {
+       delta_max = delta_highT;
+     } else if (cParams.convergence_mode == 1) {
+-      delta_max = cParams.delta_lowT / sqrt(std::max(beta, 1.0));
++      delta_max = cParams.delta_lowT / alpaka::math::sqrt(acc, alpaka::math::max(acc, beta, 1.0));
+     }
+     int maxIterations = 1000;
+     set_vtx_range(acc, tracks, vertices, cParams, osumtkwt, beta, trackBlockSize);
+@@ -890,8 +890,8 @@
+            ivertexO < maxVerticesPerBlock * blockIdx + vertices[blockIdx].nV();
+            ivertexO++) {
+         int ivertex = vertices[ivertexO].order();
+-        if (abs(vertices[ivertex].aux1()) > dmax)
+-          dmax = abs(vertices[ivertex].aux1());
++        if (alpaka::math::abs(acc, vertices[ivertex].aux1()) > dmax)
++          dmax = alpaka::math::abs(acc, vertices[ivertex].aux1());
+       }
+       delta_sum_range += dmax;
+       // If a vertex moved too much we reassign
+@@ -942,7 +942,7 @@
+                                                   int trackBlockSize) {
+     // Perform cooling of the deterministic annealing
+     int blockIdx = alpaka::getIdx<alpaka::Grid, alpaka::Blocks>(acc)[0u];
+-    double betafreeze = (1. / cParams.Tmin) * sqrt(cParams.coolingFactor);
++    double betafreeze = (1. / cParams.Tmin) * alpaka::math::sqrt(acc, cParams.coolingFactor);
+     while (beta < betafreeze) {
+ #ifdef DEBUG_RECOVERTEX_PRIMARYVERTEXPRODUCER_CLUSTERIZERALGO
+       if (once_per_block(acc)) {
+@@ -1048,7 +1048,7 @@
+     while (beta < 1. / cParams.Tpurge) {
+       alpaka::syncBlockThreads(acc);
+       if (once_per_block(acc)) {
+-        beta = std::min(beta / cParams.coolingFactor, 1. / cParams.Tpurge);
++        beta = alpaka::math::min(acc, beta / cParams.coolingFactor, 1. / cParams.Tpurge);
+       }
+       alpaka::syncBlockThreads(acc);
+       thermalize(acc, tracks, vertices, cParams, osumtkwt, beta, cParams.delta_lowT, rho0, trackBlockSize);
+@@ -1065,7 +1065,7 @@
+     while (beta < 1. / cParams.Tstop) {
+       alpaka::syncBlockThreads(acc);
+       if (once_per_block(acc)) {
+-        beta = std::min(beta / cParams.coolingFactor, 1. / cParams.Tstop);
++        beta = alpaka::math::min(acc, beta / cParams.coolingFactor, 1. / cParams.Tstop);
+       }
+       alpaka::syncBlockThreads(acc);
+       thermalize(acc, tracks, vertices, cParams, osumtkwt, beta, cParams.delta_lowT, rho0, trackBlockSize);
+diff -ruN /home/claude/scratch/campaign/snap/pre_b02_alpaka_math/RecoVertex/PrimaryVertexProducer/plugins/alpaka/DAInBlocksClusterizerArbitrator.dev.cc /home/claude/scratch/campaign/snap/post_b02_alpaka_math/RecoVertex/PrimaryVertexProducer/plugins/alpaka/DAInBlocksClusterizerArbitrator.dev.cc
+--- /home/claude/scratch/campaign/snap/pre_b02_alpaka_math/RecoVertex/PrimaryVertexProducer/plugins/alpaka/DAInBlocksClusterizerArbitrator.dev.cc	2026-11-06 14:25:08.342755669 -0500
++++ /home/claude/scratch/campaign/snap/post_b02_alpaka_math/RecoVertex/PrimaryVertexProducer/plugins/alpaka/DAInBlocksClusterizerArbitrator.dev.cc	2026-11-06 14:45:48.805102734 -0500
+@@ -35,7 +35,7 @@
+ 
+     for (unsigned int iv = threadIdx; iv < maxVerticesInSoA; iv += blockSize) {
+       if (vertices[iv].isGood()) {
+-        if ((vertices[iv].rho() > 10000) || (abs(vertices[iv].z()) > 30)) {
++        if ((vertices[iv].rho() > 10000) || (alpaka::math::abs(acc, vertices[iv].z()) > 30)) {
+           vertices[iv].isGood() = false;
+         }
+       }
+@@ -102,7 +102,7 @@
+     for (int itrack = threadIdx; itrack < tracks.nT(); itrack += blockSize) {
+       if (not(tracks[itrack].isGood()))
+         continue;
+-      double zrange = std::max(cParams.zrange / sqrt((beta)*tracks[itrack].oneoverdz2()), zrange_min_);
++      double zrange = alpaka::math::max(acc, cParams.zrange / alpaka::math::sqrt(acc, (beta)*tracks[itrack].oneoverdz2()), zrange_min_);
+       double zmin = tracks[itrack].z() - zrange;
+       int kmin = vertices[0].nV() - 1;
+       if (kmin < 0)
+@@ -134,8 +134,8 @@
+         tracks[itrack].kmin() = kmin;
+         tracks[itrack].kmax() = kmax + 1;
+       } else {
+-        tracks[itrack].kmin() = std::max(0, std::min(kmin, kmax));
+-        tracks[itrack].kmax() = std::min(vertices[0].nV(), std::max(kmin, kmax) + 1);
++        tracks[itrack].kmin() = alpaka::math::max(acc, 0, alpaka::math::min(acc, kmin, kmax));
++        tracks[itrack].kmax() = alpaka::math::min(acc, vertices[0].nV(), alpaka::math::max(acc, kmin, kmax) + 1);
+       }
+     }
+ #ifdef DEBUG_RECOVERTEX_PRIMARYVERTEXPRODUCER_ARBITRATOR
+@@ -147,7 +147,7 @@
+ 
+     alpaka::syncBlockThreads(acc);
+     double rho0 = vertices[0].nV() > 1 ? 1. / vertices[0].nV() : 1.;
+-    double z_sum_init = rho0 * exp(-(beta)*cParams.dzCutOff * cParams.dzCutOff);
++    double z_sum_init = rho0 * alpaka::math::exp(acc, -(beta)*cParams.dzCutOff * cParams.dzCutOff);
+     for (int itrack = threadIdx; itrack < tracks.nT(); itrack += blockSize) {
+       int kmin = tracks[itrack].kmin();
+       int kmax = tracks[itrack].kmax();
+@@ -155,14 +155,14 @@
+       int iMax = 10000;
+       double sum_Z = z_sum_init;
+       for (auto k = kmin; k < kmax; k++) {
+-        double v_exp = exp(-(beta)*std::pow(tracks[itrack].z() - vertices[vertices[k].order()].z(), 2) *
++        double v_exp = alpaka::math::exp(acc, -(beta)*alpaka::math::pow(acc, tracks[itrack].z() - vertices[vertices[k].order()].z(), 2) *
+                            tracks[itrack].oneoverdz2());
+         sum_Z += vertices[vertices[k].order()].rho() * v_exp;
+       }
+       double invZ = sum_Z > 1e-40 ? 1. / sum_Z : 0.0;
+       // Univocally assign a track to the highest probability vertex
+       for (auto k = kmin; k < kmax; k++) {
+-        float v_exp = exp(-(beta)*std::pow(tracks[itrack].z() - vertices[vertices[k].order()].z(), 2) *
++        float v_exp = alpaka::math::exp(acc, -(beta)*alpaka::math::pow(acc, tracks[itrack].z() - vertices[vertices[k].order()].z(), 2) *
+                           tracks[itrack].oneoverdz2());
+         float p = vertices[vertices[k].order()].rho() * v_exp * invZ;
+         if (p > p_max && p > cParams.mintrkweight) {
+@@ -227,7 +227,7 @@
+       for (int it = 0; it < vertices[ivertex].ntracks(); it++) {
+         sum_invvar += tracks[vertices[ivertex].track_id()[it]].oneoverdz2();
+       }
+-      sigma_z[ivertex] = (sum_invvar > 0.) ? sqrt(1. / sum_invvar) : 0.;
++      sigma_z[ivertex] = (sum_invvar > 0.) ? alpaka::math::sqrt(acc, 1. / sum_invvar) : 0.;
+       if (vertices[ivertex].ntracks() < 2) {
+         vertices[ivertex].isGood() = false;
+         continue;
+@@ -275,9 +275,9 @@
+         // legitimately disagree in z by more than that fixed floor without
+         // being a different vertex -- same fix as the CPU
+         // DAClusterizerInZ_vect::vertices_in_blocks() merge step.
+-        double combinedSigma = sqrt(sigma_z[thisVertex] * sigma_z[thisVertex] + sigma_z[prevVertexO] * sigma_z[prevVertexO]);
+-        double mergeThreshold = std::max(2 * cParams.vertexSize, 3.0 * combinedSigma);
+-        if (abs(vertices[thisVertex].z() - vertices[prevVertexO].z()) > mergeThreshold) {
++        double combinedSigma = alpaka::math::sqrt(acc, sigma_z[thisVertex] * sigma_z[thisVertex] + sigma_z[prevVertexO] * sigma_z[prevVertexO]);
++        double mergeThreshold = alpaka::math::max(acc, 2 * cParams.vertexSize, 3.0 * combinedSigma);
++        if (alpaka::math::abs(acc, vertices[thisVertex].z() - vertices[prevVertexO].z()) > mergeThreshold) {
+           // If it is further away enough, it is also good
+           vertices[thisVertex].isGood() = true;
+ #ifdef DEBUG_RECOVERTEX_PRIMARYVERTEXPRODUCER_ARBITRATOR
+diff -ruN /home/claude/scratch/campaign/snap/pre_b02_alpaka_math/RecoVertex/PrimaryVertexProducer/plugins/alpaka/TracksForDAInBlocksAlgo.dev.cc /home/claude/scratch/campaign/snap/post_b02_alpaka_math/RecoVertex/PrimaryVertexProducer/plugins/alpaka/TracksForDAInBlocksAlgo.dev.cc
+--- /home/claude/scratch/campaign/snap/pre_b02_alpaka_math/RecoVertex/PrimaryVertexProducer/plugins/alpaka/TracksForDAInBlocksAlgo.dev.cc	2026-11-06 14:25:08.342755669 -0500
++++ /home/claude/scratch/campaign/snap/post_b02_alpaka_math/RecoVertex/PrimaryVertexProducer/plugins/alpaka/TracksForDAInBlocksAlgo.dev.cc	2026-11-06 14:45:48.807102734 -0500
+@@ -1,5 +1,4 @@
+ #include <alpaka/alpaka.hpp>
+-#include <cmath>
+ #include "HeterogeneousCore/AlpakaInterface/interface/config.h"
+ #include "HeterogeneousCore/AlpakaInterface/interface/workdivision.h"
+ 
+@@ -80,7 +79,7 @@
+         trackInBlocks.nT() =
+             (int32_t)(nBlocks * blockSize + nTOld -
+                       (1. - blockOverlap) * blockSize *
+-                          std::ceil(
++                          alpaka::math::ceil(acc, 
+                               nTOld /
+                               ((1. - blockOverlap) *
+                                blockSize)));  // The new number of tracks has to account for the fact that we overlapped
+diff -ruN /home/claude/scratch/campaign/snap/pre_b02_alpaka_math/RecoVertex/PrimaryVertexProducer/plugins/alpaka/WeightedVertexFitterAlgo.dev.cc /home/claude/scratch/campaign/snap/post_b02_alpaka_math/RecoVertex/PrimaryVertexProducer/plugins/alpaka/WeightedVertexFitterAlgo.dev.cc
+--- /home/claude/scratch/campaign/snap/pre_b02_alpaka_math/RecoVertex/PrimaryVertexProducer/plugins/alpaka/WeightedVertexFitterAlgo.dev.cc	2026-11-06 14:25:08.342755669 -0500
++++ /home/claude/scratch/campaign/snap/post_b02_alpaka_math/RecoVertex/PrimaryVertexProducer/plugins/alpaka/WeightedVertexFitterAlgo.dev.cc	2026-11-06 14:45:48.807102734 -0500
+@@ -276,7 +276,7 @@
+               old_z,
+               z);
+ #endif
+-          if ((abs(old_x - x) < precision) && (abs(old_y - y) < precision) && (abs(old_z - z) < precision))
++          if ((alpaka::math::abs(acc, old_x - x) < precision) && (alpaka::math::abs(acc, old_y - y) < precision) && (alpaka::math::abs(acc, old_z - z) < precision))
+             break;  // If good enough, stop the iterations
+         }  // end while
+         if (fitFailed) {

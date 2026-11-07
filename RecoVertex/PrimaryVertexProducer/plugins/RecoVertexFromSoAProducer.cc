@@ -6,7 +6,7 @@
 #include "FWCore/Utilities/interface/InputTag.h"
 #include "FWCore/Utilities/interface/EDGetToken.h"
 #include "FWCore/Utilities/interface/EDPutToken.h"
-#include "FWCore/Framework/interface/stream/EDProducer.h"
+#include "FWCore/Framework/interface/global/EDProducer.h"
 #include "FWCore/Framework/interface/Event.h"
 #include "FWCore/Framework/interface/EventSetup.h"
 #include "DataFormats/VertexReco/interface/VertexFwd.h"
@@ -24,9 +24,9 @@
    * - consuming set of reco::Tracks and portablevertex SoA
    * - produces a host reco::vertexCollection
  */
-class SoAToRecoVertexProducer : public edm::stream::EDProducer<> {
+class RecoVertexFromSoAProducer : public edm::global::EDProducer<> {
 public:
-  SoAToRecoVertexProducer(edm::ParameterSet const& config)
+  RecoVertexFromSoAProducer(edm::ParameterSet const& config)
       : portableVertexToken_(consumes(config.getParameter<edm::InputTag>("soaVertex"))),
         soaTracksInBlocksToken_(consumes(config.getParameter<edm::InputTag>("soaVertex"))),
         recoTrackToken_(consumes(config.getParameter<edm::InputTag>("srcTrack"))),
@@ -41,19 +41,19 @@ public:
   }
 
 private:
-  void produce(edm::Event&, const edm::EventSetup&) override;
-  const edm::EDGetTokenT<VertexHostCollection> portableVertexToken_;
-  const edm::EDGetTokenT<TrackForVertexHostCollection> soaTracksInBlocksToken_;
+  void produce(edm::StreamID, edm::Event&, const edm::EventSetup&) const override;
+  const edm::EDGetTokenT<::reco::VertexHostCollection> portableVertexToken_;
+  const edm::EDGetTokenT<::reco::TrackForVertexHostCollection> soaTracksInBlocksToken_;
   const edm::EDGetTokenT<reco::TrackCollection> recoTrackToken_;
   const edm::EDPutTokenT<reco::VertexCollection> recoVertexToken_;
 };
 
-void SoAToRecoVertexProducer::produce(edm::Event& iEvent, const edm::EventSetup& iSetup) {
+void RecoVertexFromSoAProducer::produce(edm::StreamID, edm::Event& iEvent, const edm::EventSetup& iSetup) const {
   // Book inputs and space for outputs
-  const VertexHostCollection& hostVertex = iEvent.get(portableVertexToken_);
-  const VertexHostCollection::ConstView& hostVertexView = hostVertex.const_view();
-  const TrackForVertexHostCollection& hostTracksInBlocks = iEvent.get(soaTracksInBlocksToken_);
-  const TrackForVertexHostCollection::ConstView& hostTracksInBlocksView = hostTracksInBlocks.const_view();
+  const ::reco::VertexHostCollection& hostVertex = iEvent.get(portableVertexToken_);
+  const ::reco::VertexHostCollection::ConstView& hostVertexView = hostVertex.const_view();
+  const ::reco::TrackForVertexHostCollection& hostTracksInBlocks = iEvent.get(soaTracksInBlocksToken_);
+  const ::reco::TrackForVertexHostCollection::ConstView& hostTracksInBlocksView = hostTracksInBlocks.const_view();
   // Note that we need reco::Tracks for building the track Reference vector inside the reco::Vertex
   auto tracks = iEvent.getHandle(recoTrackToken_);
 
@@ -91,4 +91,4 @@ void SoAToRecoVertexProducer::produce(edm::Event& iEvent, const edm::EventSetup&
 }
 
 #include "FWCore/Framework/interface/MakerMacros.h"
-DEFINE_FWK_MODULE(SoAToRecoVertexProducer);
+DEFINE_FWK_MODULE(RecoVertexFromSoAProducer);

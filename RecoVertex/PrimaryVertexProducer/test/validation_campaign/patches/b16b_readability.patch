@@ -1,0 +1,71 @@
+diff -ruN /home/claude/scratch/campaign/snap/pre_b16b_readability/RecoVertex/PrimaryVertexProducer/plugins/alpaka/PrimaryVertexProducerPortable.cc /home/claude/scratch/campaign/snap/post_b16b_readability/RecoVertex/PrimaryVertexProducer/plugins/alpaka/PrimaryVertexProducerPortable.cc
+--- /home/claude/scratch/campaign/snap/pre_b16b_readability/RecoVertex/PrimaryVertexProducer/plugins/alpaka/PrimaryVertexProducerPortable.cc	2026-11-06 18:45:18.712829096 -0500
++++ /home/claude/scratch/campaign/snap/post_b16b_readability/RecoVertex/PrimaryVertexProducer/plugins/alpaka/PrimaryVertexProducerPortable.cc	2026-11-06 19:01:46.725696915 -0500
+@@ -43,28 +43,30 @@
+       tracksInBlocksPutToken_ = produces();
+       blockSize_ = config.getParameter<int32_t>("blockSize");
+       blockOverlap_ = config.getParameter<double>("blockOverlap");
++      // Fetch the (not free) ParameterSet once
++      const auto tkClusParameters = config.getParameter<edm::ParameterSet>("TkClusParameters");
+       clusterParams_ = {
+-          .Tmin = config.getParameter<edm::ParameterSet>("TkClusParameters").getParameter<double>("Tmin"),
+-          .Tpurge = config.getParameter<edm::ParameterSet>("TkClusParameters").getParameter<double>("Tpurge"),
+-          .Tstop = config.getParameter<edm::ParameterSet>("TkClusParameters").getParameter<double>("Tstop"),
+-          .vertexSize = config.getParameter<edm::ParameterSet>("TkClusParameters").getParameter<double>("vertexSize"),
++          .Tmin = tkClusParameters.getParameter<double>("Tmin"),
++          .Tpurge = tkClusParameters.getParameter<double>("Tpurge"),
++          .Tstop = tkClusParameters.getParameter<double>("Tstop"),
++          .vertexSize = tkClusParameters.getParameter<double>("vertexSize"),
+           .coolingFactor =
+-              config.getParameter<edm::ParameterSet>("TkClusParameters").getParameter<double>("coolingFactor"),
+-          .d0CutOff = config.getParameter<edm::ParameterSet>("TkClusParameters").getParameter<double>("d0CutOff"),
+-          .dzCutOff = config.getParameter<edm::ParameterSet>("TkClusParameters").getParameter<double>("dzCutOff"),
++              tkClusParameters.getParameter<double>("coolingFactor"),
++          .d0CutOff = tkClusParameters.getParameter<double>("d0CutOff"),
++          .dzCutOff = tkClusParameters.getParameter<double>("dzCutOff"),
+           .uniquetrkweight =
+-              config.getParameter<edm::ParameterSet>("TkClusParameters").getParameter<double>("uniquetrkweight"),
++              tkClusParameters.getParameter<double>("uniquetrkweight"),
+           .uniquetrkminp =
+-              config.getParameter<edm::ParameterSet>("TkClusParameters").getParameter<double>("uniquetrkminp"),
++              tkClusParameters.getParameter<double>("uniquetrkminp"),
+           .mintrkweight =
+-              config.getParameter<edm::ParameterSet>("TkClusParameters").getParameter<double>("mintrkweight"),
+-          .zmerge = config.getParameter<edm::ParameterSet>("TkClusParameters").getParameter<double>("zmerge"),
+-          .zrange = config.getParameter<edm::ParameterSet>("TkClusParameters").getParameter<double>("zrange"),
++              tkClusParameters.getParameter<double>("mintrkweight"),
++          .zmerge = tkClusParameters.getParameter<double>("zmerge"),
++          .zrange = tkClusParameters.getParameter<double>("zrange"),
+           .convergence_mode =
+-              config.getParameter<edm::ParameterSet>("TkClusParameters").getParameter<int>("convergence_mode"),
+-          .delta_lowT = config.getParameter<edm::ParameterSet>("TkClusParameters").getParameter<double>("delta_lowT"),
++              tkClusParameters.getParameter<int>("convergence_mode"),
++          .delta_lowT = tkClusParameters.getParameter<double>("delta_lowT"),
+           .delta_highT =
+-              config.getParameter<edm::ParameterSet>("TkClusParameters").getParameter<double>("delta_highT")};
++              tkClusParameters.getParameter<double>("delta_highT")};
+       clusterParams_.uniquetrkminp = clusterParams_.uniquetrkminp * (1 - blockOverlap_);
+       fitterParams_ = {
+           .useBeamSpotConstraint =
+diff -ruN /home/claude/scratch/campaign/snap/pre_b16b_readability/RecoVertex/PrimaryVertexProducer/plugins/alpaka/TracksForDAInBlocksAlgo.dev.cc /home/claude/scratch/campaign/snap/post_b16b_readability/RecoVertex/PrimaryVertexProducer/plugins/alpaka/TracksForDAInBlocksAlgo.dev.cc
+--- /home/claude/scratch/campaign/snap/pre_b16b_readability/RecoVertex/PrimaryVertexProducer/plugins/alpaka/TracksForDAInBlocksAlgo.dev.cc	2026-11-06 18:45:18.712829096 -0500
++++ /home/claude/scratch/campaign/snap/post_b16b_readability/RecoVertex/PrimaryVertexProducer/plugins/alpaka/TracksForDAInBlocksAlgo.dev.cc	2026-11-06 19:01:46.725696915 -0500
+@@ -33,12 +33,12 @@
+       printf("[TracksForDAInBlocksAlgo::operator()] Will create nBlocks: %i\n", nBlocks);
+ #endif
+       int32_t overlapStart = (1. - blockOverlap) * blockSize;
+-      for (auto iNewTrack : uniform_elements(
+-               acc,
+-               blockSize)) {  // The accelerator has as much threads as blockSize, so each thread will enter once on each block
+-        for (int32_t iblock = 0; iblock < nBlocks; iblock++) {  // Each thread will create -up to- one track per block
+-          int32_t oldIndex = (iblock * overlapStart) +
+-                             iNewTrack;  // I.e. first track in the block in which we are + thread in which we are
++      // The accelerator has as many threads as blockSize, so each thread will enter once on each block
++      for (auto iNewTrack : uniform_elements(acc, blockSize)) {
++        // Each thread will create -up to- one track per block
++        for (int32_t iblock = 0; iblock < nBlocks; iblock++) {
++          // I.e. first track in the block in which we are + thread in which we are
++          int32_t oldIndex = (iblock * overlapStart) + iNewTrack;
+           if (oldIndex >= nTOld)
+             break;  // I.e. we reached the end of the input block
+           int32_t newIndex = iNewTrack + iblock * blockSize;

@@ -139,7 +139,7 @@ if args.mode == "Alpaka":
     		)
     )
 
-    process.vertexAoS = cms.EDProducer("SoAToRecoVertexProducer",
+    process.vertexAoS = cms.EDProducer("RecoVertexFromSoAProducer",
 		soaVertex = cms.InputTag("vertexSoA"),
     		srcTrack  = cms.InputTag("generalTracks")
     )

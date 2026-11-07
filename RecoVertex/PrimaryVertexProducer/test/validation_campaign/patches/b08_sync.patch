@@ -1,0 +1,11 @@
+diff -ruN /home/claude/scratch/campaign/snap/pre_b08_sync/RecoVertex/PrimaryVertexProducer/plugins/alpaka/DAInBlocksClusterizerAlgo.dev.cc /home/claude/scratch/campaign/snap/post_b08_sync/RecoVertex/PrimaryVertexProducer/plugins/alpaka/DAInBlocksClusterizerAlgo.dev.cc
+--- /home/claude/scratch/campaign/snap/pre_b08_sync/RecoVertex/PrimaryVertexProducer/plugins/alpaka/DAInBlocksClusterizerAlgo.dev.cc	2026-11-06 17:24:48.993357163 -0500
++++ /home/claude/scratch/campaign/snap/post_b08_sync/RecoVertex/PrimaryVertexProducer/plugins/alpaka/DAInBlocksClusterizerAlgo.dev.cc	2026-11-06 17:41:02.973559204 -0500
+@@ -204,7 +204,6 @@
+           alpaka::declareSharedVar<double, __COUNTER__>(acc);  // 1/T in the annealing loop, shared in the block
+       double& osumtkwt = alpaka::declareSharedVar<double, __COUNTER__>(
+           acc);  // Sum of all track weights for normalization of probabilities, shared in the block
+-      alpaka::syncBlockThreads(acc);
+       if (once_per_block(acc)) {
+         osumtkwt = 0;
+       }

@@ -1,0 +1,159 @@
+diff -ruN /home/claude/scratch/campaign/snap/pre_b12a_track_loops/RecoVertex/PrimaryVertexProducer/plugins/alpaka/DAInBlocksClusterizerAlgo.dev.cc /home/claude/scratch/campaign/snap/post_b12a_track_loops/RecoVertex/PrimaryVertexProducer/plugins/alpaka/DAInBlocksClusterizerAlgo.dev.cc
+--- /home/claude/scratch/campaign/snap/pre_b12a_track_loops/RecoVertex/PrimaryVertexProducer/plugins/alpaka/DAInBlocksClusterizerAlgo.dev.cc	2026-11-06 19:17:22.746879390 -0500
++++ /home/claude/scratch/campaign/snap/post_b12a_track_loops/RecoVertex/PrimaryVertexProducer/plugins/alpaka/DAInBlocksClusterizerAlgo.dev.cc	2026-11-06 19:32:33.459900287 -0500
+@@ -40,8 +40,8 @@
+       }
+     }  // end for
+     alpaka::syncBlockThreads(acc);
+-    for (int itrack = threadIdx + blockIdx * trackBlockSize; itrack < threadIdx + (blockIdx + 1) * trackBlockSize;
+-         itrack += blockSize) {
++    for (int itrackO : independent_group_elements(acc, trackBlockSize)) {
++      int itrack = itrackO + blockIdx * trackBlockSize;
+       // Tracks are associated to vertex in list kmin, kmin+1,... kmax-1, so this just assign all tracks to the vertex we just created
+       tracks[itrack].kmin() = maxVerticesPerBlock * blockIdx;
+       tracks[itrack].kmax() = maxVerticesPerBlock * blockIdx + 1;
+@@ -57,12 +57,10 @@
+                                      double& beta,
+                                      int trackBlockSize) {
+     // Computes first critical temperature
+-    int blockSize = alpaka::getWorkDiv<alpaka::Block, alpaka::Threads>(acc)[0u];
+-    int threadIdx = alpaka::getIdx<alpaka::Block, alpaka::Threads>(acc)[0u];
+     int blockIdx = alpaka::getIdx<alpaka::Grid, alpaka::Blocks>(acc)[0u];
+     int maxVerticesPerBlock = (int)1024 / alpaka::getWorkDiv<alpaka::Grid, alpaka::Blocks>(acc)[0u];
+-    for (int itrack = threadIdx + blockIdx * trackBlockSize; itrack < threadIdx + (blockIdx + 1) * trackBlockSize;
+-         itrack += blockSize) {
++    for (int itrackO : independent_group_elements(acc, trackBlockSize)) {
++      int itrack = itrackO + blockIdx * trackBlockSize;
+       if (not(tracks[itrack].isGood()))
+         continue;
+       tracks[itrack].aux1() = tracks[itrack].weight() * tracks[itrack].oneoverdz2();
+@@ -77,8 +75,8 @@
+       znew = 0.;
+     }
+     alpaka::syncBlockThreads(acc);
+-    for (int itrack = threadIdx + blockIdx * trackBlockSize; itrack < threadIdx + (blockIdx + 1) * trackBlockSize;
+-         itrack += blockSize) {
++    for (int itrackO : independent_group_elements(acc, trackBlockSize)) {
++      int itrack = itrackO + blockIdx * trackBlockSize;
+       if (not(tracks[itrack].isGood()))
+         continue;
+       alpaka::atomicAdd(acc, &wnew, tracks[itrack].aux1(), alpaka::hierarchy::Threads{});
+@@ -91,8 +89,8 @@
+     }
+     alpaka::syncBlockThreads(acc);
+     // Now do a chi-2 like of all tracks and save it again in znew
+-    for (int itrack = threadIdx + blockIdx * trackBlockSize; itrack < threadIdx + (blockIdx + 1) * trackBlockSize;
+-         itrack += blockSize) {
++    for (int itrackO : independent_group_elements(acc, trackBlockSize)) {
++      int itrack = itrackO + blockIdx * trackBlockSize;
+       if (not(tracks[itrack].isGood()))
+         continue;
+       tracks[itrack].aux2() =
+@@ -190,7 +188,6 @@
+       // vertices is filled up by this kernel with protocluster properties
+       // beta_ and osumtkwt_ are used to pass the final values of beta and osumtkwt on each block to the next kernel
+       int blockSize = alpaka::getWorkDiv<alpaka::Block, alpaka::Threads>(acc)[0u];
+-      int threadIdx = alpaka::getIdx<alpaka::Block, alpaka::Threads>(acc)[0u];
+       int blockIdx = alpaka::getIdx<alpaka::Grid, alpaka::Blocks>(acc)[0u];
+ #ifdef DEBUG_RECOVERTEX_PRIMARYVERTEXPRODUCER_CLUSTERIZERALGO
+       if (once_per_block(acc)) {
+@@ -208,8 +205,8 @@
+         osumtkwt = 0;
+       }
+       alpaka::syncBlockThreads(acc);
+-      for (int itrack = threadIdx + blockIdx * trackBlockSize; itrack < threadIdx + (blockIdx + 1) * trackBlockSize;
+-           itrack += blockSize) {
++      for (int itrackO : independent_group_elements(acc, trackBlockSize)) {
++        int itrack = itrackO + blockIdx * trackBlockSize;
+         if (not(tracks[itrack].isGood()))
+           continue;
+         double temp_weight = static_cast<double>(tracks[itrack].weight());
+diff -ruN /home/claude/scratch/campaign/snap/pre_b12a_track_loops/RecoVertex/PrimaryVertexProducer/plugins/alpaka/DAInBlocksClusterizerMergeSplit.h /home/claude/scratch/campaign/snap/post_b12a_track_loops/RecoVertex/PrimaryVertexProducer/plugins/alpaka/DAInBlocksClusterizerMergeSplit.h
+--- /home/claude/scratch/campaign/snap/pre_b12a_track_loops/RecoVertex/PrimaryVertexProducer/plugins/alpaka/DAInBlocksClusterizerMergeSplit.h	2026-11-06 19:17:22.746879390 -0500
++++ /home/claude/scratch/campaign/snap/post_b12a_track_loops/RecoVertex/PrimaryVertexProducer/plugins/alpaka/DAInBlocksClusterizerMergeSplit.h	2026-11-06 19:32:33.461900287 -0500
+@@ -142,8 +142,8 @@
+           critical_index[resort]--;  // critical_index refers to the original vertices->order, so it needs to be updated
+       }
+       nprev = vertices[blockIdx].nV();  // And to the counter of previous vertices
+-      for (int itrack = threadIdx + blockIdx * trackBlockSize; itrack < threadIdx + (blockIdx + 1) * trackBlockSize;
+-           itrack += blockSize) {
++      for (int itrackO : independent_group_elements(acc, trackBlockSize)) {
++        int itrack = itrackO + blockIdx * trackBlockSize;
+         if (tracks[itrack].kmax() > ivertexO + 1)
+           tracks[itrack].kmax()--;
+         if ((tracks[itrack].kmin() > ivertexO) || ((tracks[itrack].kmax() < (tracks[itrack].kmin() + 1)) &&
+@@ -258,8 +258,8 @@
+         w2 = 0.;
+       }
+       alpaka::syncBlockThreads(acc);
+-      for (int itrack = threadIdx + blockIdx * trackBlockSize; itrack < threadIdx + (blockIdx + 1) * trackBlockSize;
+-           itrack += blockSize) {
++      for (int itrackO : independent_group_elements(acc, trackBlockSize)) {
++        int itrack = itrackO + blockIdx * trackBlockSize;
+         if (tracks[itrack].sum_Z() > 1e-40) {
+           // winner-takes-all, usually overestimates splitting
+           double tl = tracks[itrack].z() < vertices[ivertex].z() ? 1. : 0.;
+@@ -383,8 +383,8 @@
+       }
+       alpaka::syncBlockThreads(acc);
+       // Now, update kmin/kmax for all tracks
+-      for (int itrack = threadIdx + blockIdx * trackBlockSize; itrack < threadIdx + (blockIdx + 1) * trackBlockSize;
+-           itrack += blockSize) {
++      for (int itrackO : independent_group_elements(acc, trackBlockSize)) {
++        int itrack = itrackO + blockIdx * trackBlockSize;
+         if (tracks[itrack].kmin() > ivertexO)
+           tracks[itrack].kmin()++;
+         if ((tracks[itrack].kmax() >= ivertexO) || (tracks[itrack].kmax() == tracks[itrack].kmin()))
+@@ -434,8 +434,8 @@
+     }
+     alpaka::syncBlockThreads(acc);
+     // Get quality of vertex in terms of #Tracks and sum of track probabilities
+-    for (int itrack = threadIdx + blockIdx * trackBlockSize; itrack < threadIdx + (blockIdx + 1) * trackBlockSize;
+-         itrack += blockSize) {
++    for (int itrackO : independent_group_elements(acc, trackBlockSize)) {
++      int itrack = itrackO + blockIdx * trackBlockSize;
+       double track_aux1 = ((tracks[itrack].sum_Z() > eps) && (tracks[itrack].weight() > cParams.uniquetrkminp))
+                               ? 1. / tracks[itrack].sum_Z()
+                               : 0.;
+@@ -493,8 +493,8 @@
+     }  // end once_per_block
+     alpaka::syncBlockThreads(acc);
+     if (k0 != (int)(maxVerticesPerBlock * blockIdx + (int)nprev)) {
+-      for (int itrack = threadIdx + blockIdx * trackBlockSize; itrack < threadIdx + (blockIdx + 1) * trackBlockSize;
+-           itrack += blockSize) {
++      for (int itrackO : independent_group_elements(acc, trackBlockSize)) {
++        int itrack = itrackO + blockIdx * trackBlockSize;
+         if (tracks[itrack].kmax() > k0)
+           tracks[itrack].kmax()--;
+         if ((tracks[itrack].kmin() > k0) || ((tracks[itrack].kmax() < (tracks[itrack].kmin() + 1)) &&
+diff -ruN /home/claude/scratch/campaign/snap/pre_b12a_track_loops/RecoVertex/PrimaryVertexProducer/plugins/alpaka/DAInBlocksClusterizerPrimitives.h /home/claude/scratch/campaign/snap/post_b12a_track_loops/RecoVertex/PrimaryVertexProducer/plugins/alpaka/DAInBlocksClusterizerPrimitives.h
+--- /home/claude/scratch/campaign/snap/pre_b12a_track_loops/RecoVertex/PrimaryVertexProducer/plugins/alpaka/DAInBlocksClusterizerPrimitives.h	2026-11-06 19:17:22.746879390 -0500
++++ /home/claude/scratch/campaign/snap/post_b12a_track_loops/RecoVertex/PrimaryVertexProducer/plugins/alpaka/DAInBlocksClusterizerPrimitives.h	2026-11-06 19:32:33.462900287 -0500
+@@ -54,14 +54,12 @@
+                                           double& beta,
+                                           int trackBlockSize) {
+     // These updates the range of vertices associated to each track through the kmin/kmax variables
+-    int blockSize = alpaka::getWorkDiv<alpaka::Block, alpaka::Threads>(acc)[0u];
+-    int threadIdx = alpaka::getIdx<alpaka::Block, alpaka::Threads>(acc)[0u];  // Thread number inside block
+     int blockIdx = alpaka::getIdx<alpaka::Grid, alpaka::Blocks>(acc)[0u];     // Block number inside grid
+     int maxVerticesPerBlock = (int)1024 / alpaka::getWorkDiv<alpaka::Grid, alpaka::Blocks>(
+                                               acc)[0u];  // Max vertices size is 1024 over number of blocks in grid
+     float zrange_min = 0.1;                            // Hard coded as in CPU version
+-    for (int itrack = threadIdx + blockIdx * trackBlockSize; itrack < threadIdx + (blockIdx + 1) * trackBlockSize;
+-         itrack += blockSize) {
++    for (int itrackO : independent_group_elements(acc, trackBlockSize)) {
++      int itrack = itrackO + blockIdx * trackBlockSize;
+       // Based on current temperature (regularization term) and track position uncertainty, only keep relevant vertices
+       float zrange = alpaka::math::max(acc, cParams.zrange / alpaka::math::sqrt(acc, (beta)*tracks[itrack].oneoverdz2()), (double)zrange_min);
+       float zmin = tracks[itrack].z() - zrange;
+@@ -129,8 +127,8 @@
+                                               acc)[0u];  // Max vertices size is 1024 over number of blocks in grid
+     // Initial partition function, really only used on the outlier rejection step to penalize
+     double Zinit = rho0 * alpaka::math::exp(acc, -(beta)*cParams.dzCutOff * cParams.dzCutOff);
+-    for (int itrack = threadIdx + blockIdx * trackBlockSize; itrack < threadIdx + (blockIdx + 1) * trackBlockSize;
+-         itrack += blockSize) {
++    for (int itrackO : independent_group_elements(acc, trackBlockSize)) {
++      int itrack = itrackO + blockIdx * trackBlockSize;
+       double botrack_dz2 = -(beta)*tracks[itrack].oneoverdz2();
+       tracks[itrack].sum_Z() = Zinit;
+       for (int ivertexO = tracks[itrack].kmin(); ivertexO < tracks[itrack].kmax(); ++ivertexO) {

@@ -1,0 +1,14 @@
+diff -ruN /home/claude/scratch/campaign/snap/pre_b13_flow/RecoVertex/PrimaryVertexProducer/plugins/alpaka/DAInBlocksClusterizerMergeSplit.h /home/claude/scratch/campaign/snap/post_b13_flow/RecoVertex/PrimaryVertexProducer/plugins/alpaka/DAInBlocksClusterizerMergeSplit.h
+--- /home/claude/scratch/campaign/snap/pre_b13_flow/RecoVertex/PrimaryVertexProducer/plugins/alpaka/DAInBlocksClusterizerMergeSplit.h	2026-11-06 17:41:04.785559641 -0500
++++ /home/claude/scratch/campaign/snap/post_b13_flow/RecoVertex/PrimaryVertexProducer/plugins/alpaka/DAInBlocksClusterizerMergeSplit.h	2026-11-06 17:58:11.496635959 -0500
+@@ -150,9 +150,7 @@
+                                                    (tracks[itrack].kmin() > maxVerticesPerBlock * blockIdx)))
+           tracks[itrack].kmin()--;
+       }
+-      alpaka::syncBlockThreads(acc);
+-      set_vtx_range(acc, tracks, vertices, cParams, osumtkwt, beta, trackBlockSize);
+-      return;
++      break;
+     }
+     alpaka::syncBlockThreads(acc);
+     set_vtx_range(acc, tracks, vertices, cParams, osumtkwt, beta, trackBlockSize);

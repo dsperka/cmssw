@@ -1,0 +1,51 @@
+{
+ "overall": "FAIL",
+ "detail": {
+  "cpu": {
+   "n": 311,
+   "differing": 263,
+   "worst_metric_delta": 0.010533511638641357,
+   "metrics": {
+    "effic_vs_Z": -0.0011577010154724121,
+    "fakerate_vs_Z": -0.0002880692481994629,
+    "merged_vs_Z": -0.00043736398220062256,
+    "duplicate_vs_Z": -0.0004806332290172577,
+    "gen_duplicate_vs_Z": -0.00028941966593265533,
+    "PV_purity_vs_Z": 0.010533511638641357
+   },
+   "sample": [
+    "GenAllAssoc2RecoMatched_ClosestDistanceZ",
+    "GenAllAssoc2RecoMatched_NumTracks",
+    "GenAllAssoc2RecoMatched_NumVertices",
+    "GenAllAssoc2RecoMatched_Pt2",
+    "GenAllAssoc2RecoMatched_R",
+    "GenAllAssoc2RecoMatched_X",
+    "GenAllAssoc2RecoMatched_Y",
+    "GenAllAssoc2RecoMatched_Z"
+   ]
+  },
+  "gpu": {
+   "n": 311,
+   "differing": 152,
+   "worst_metric_delta": 0.0,
+   "metrics": {
+    "effic_vs_Z": 0.0,
+    "fakerate_vs_Z": 0.0,
+    "merged_vs_Z": 0.0,
+    "duplicate_vs_Z": 0.0,
+    "gen_duplicate_vs_Z": 0.0,
+    "PV_purity_vs_Z": 0.0
+   },
+   "sample": [
+    "RecoAllAssoc2GenMatchedMerged_PullX_vs_Pt_Mean",
+    "RecoAllAssoc2GenMatchedMerged_PullX_vs_Pt_Sigma",
+    "RecoAllAssoc2GenMatchedMerged_PullY",
+    "RecoAllAssoc2GenMatchedMerged_PullY_vs_NumTracks_Mean",
+    "RecoAllAssoc2GenMatchedMerged_PullY_vs_NumTracks_Sigma",
+    "RecoAllAssoc2GenMatchedMerged_PullY_vs_Pt_Mean",
+    "RecoAllAssoc2GenMatchedMerged_PullY_vs_Pt_Sigma",
+    "RecoAllAssoc2GenMatchedMerged_PullY_vs_Z_Mean"
+   ]
+  }
+ }
+}

@@ -1,0 +1,32 @@
+diff -ruN /home/claude/scratch/campaign/snap/pre_b03b_float_arbitrator/RecoVertex/PrimaryVertexProducer/plugins/alpaka/DAInBlocksClusterizerArbitrator.dev.cc /home/claude/scratch/campaign/snap/post_b03b_float_arbitrator/RecoVertex/PrimaryVertexProducer/plugins/alpaka/DAInBlocksClusterizerArbitrator.dev.cc
+--- /home/claude/scratch/campaign/snap/pre_b03b_float_arbitrator/RecoVertex/PrimaryVertexProducer/plugins/alpaka/DAInBlocksClusterizerArbitrator.dev.cc	2026-11-06 15:08:24.585104584 -0500
++++ /home/claude/scratch/campaign/snap/post_b03b_float_arbitrator/RecoVertex/PrimaryVertexProducer/plugins/alpaka/DAInBlocksClusterizerArbitrator.dev.cc	2026-11-06 15:32:08.554641891 -0500
+@@ -90,7 +90,7 @@
+       vertices[ivtx].isGood() = false;
+     }
+     alpaka::syncBlockThreads(acc);
+-    double zrange_min_ = 0.1;
++    float zrange_min = 0.1;
+ 
+ #ifdef DEBUG_RECOVERTEX_PRIMARYVERTEXPRODUCER_ARBITRATOR
+     if (once_per_block(acc)) {
+@@ -102,8 +102,8 @@
+     for (int itrack = threadIdx; itrack < tracks.nT(); itrack += blockSize) {
+       if (not(tracks[itrack].isGood()))
+         continue;
+-      double zrange = alpaka::math::max(acc, cParams.zrange / alpaka::math::sqrt(acc, (beta)*tracks[itrack].oneoverdz2()), zrange_min_);
+-      double zmin = tracks[itrack].z() - zrange;
++      float zrange = alpaka::math::max(acc, cParams.zrange / alpaka::math::sqrt(acc, (beta)*tracks[itrack].oneoverdz2()), (double)zrange_min);
++      float zmin = tracks[itrack].z() - zrange;
+       int kmin = vertices[0].nV() - 1;
+       if (kmin < 0)
+         continue;
+@@ -118,7 +118,7 @@
+         }
+       }
+       // Now the same for the upper bound
+-      double zmax = tracks[itrack].z() + zrange;
++      float zmax = tracks[itrack].z() + zrange;
+       int kmax = 0;
+       if (vertices[vertices[kmax].order()].z() < zmax) {
+         while ((kmax < vertices[0].nV() - 1) && (vertices[vertices[kmax + 1].order()].z() < zmax)) {

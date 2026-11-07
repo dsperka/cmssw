@@ -1,0 +1,66 @@
+diff -ruN /home/claude/scratch/campaign/snap/pre_b03a_float_algo/RecoVertex/PrimaryVertexProducer/plugins/alpaka/DAInBlocksClusterizerAlgo.h /home/claude/scratch/campaign/snap/post_b03a_float_algo/RecoVertex/PrimaryVertexProducer/plugins/alpaka/DAInBlocksClusterizerAlgo.h
+--- /home/claude/scratch/campaign/snap/pre_b03a_float_algo/RecoVertex/PrimaryVertexProducer/plugins/alpaka/DAInBlocksClusterizerAlgo.h	2026-11-06 14:45:50.614102947 -0500
++++ /home/claude/scratch/campaign/snap/post_b03a_float_algo/RecoVertex/PrimaryVertexProducer/plugins/alpaka/DAInBlocksClusterizerAlgo.h	2026-11-06 15:08:22.832104169 -0500
+@@ -115,12 +115,12 @@
+     int blockIdx = alpaka::getIdx<alpaka::Grid, alpaka::Blocks>(acc)[0u];     // Block number inside grid
+     int maxVerticesPerBlock = (int)1024 / alpaka::getWorkDiv<alpaka::Grid, alpaka::Blocks>(
+                                               acc)[0u];  // Max vertices size is 1024 over number of blocks in grid
+-    double zrange_min_ = 0.1;                            // Hard coded as in CPU version
++    float zrange_min = 0.1;                            // Hard coded as in CPU version
+     for (int itrack = threadIdx + blockIdx * trackBlockSize; itrack < threadIdx + (blockIdx + 1) * trackBlockSize;
+          itrack += blockSize) {
+       // Based on current temperature (regularization term) and track position uncertainty, only keep relevant vertices
+-      double zrange = alpaka::math::max(acc, cParams.zrange / alpaka::math::sqrt(acc, (beta)*tracks[itrack].oneoverdz2()), zrange_min_);
+-      double zmin = tracks[itrack].z() - zrange;
++      float zrange = alpaka::math::max(acc, cParams.zrange / alpaka::math::sqrt(acc, (beta)*tracks[itrack].oneoverdz2()), (double)zrange_min);
++      float zmin = tracks[itrack].z() - zrange;
+       // First the lower bound
+       int kmin = alpaka::math::min(acc, (int)(maxVerticesPerBlock * blockIdx) + vertices.nV(blockIdx) - 1, tracks[itrack].kmin());
+       // If the vertex position in z is bigger than the minimum, go down through all vertices position until finding one that is too far
+@@ -137,7 +137,7 @@
+       }
+ 
+       // And now do the same for the upper bound
+-      double zmax = tracks[itrack].z() + zrange;
++      float zmax = tracks[itrack].z() + zrange;
+       int kmax = alpaka::math::max(acc, 0,
+                           alpaka::math::min(acc, maxVerticesPerBlock * blockIdx + (int)(vertices[blockIdx].nV()) - 1,
+                                    (int)(tracks[itrack].kmax()) - 1));
+@@ -864,8 +864,8 @@
+     int blockIdx = alpaka::getIdx<alpaka::Grid, alpaka::Blocks>(acc)[0u];
+     int maxVerticesPerBlock = (int)1024 / alpaka::getWorkDiv<alpaka::Grid, alpaka::Blocks>(acc)[0u];
+     int niter = 0;
+-    double zrange_min_ = 0.01;  // Hard coded as it is in CPU
+-    double delta_max = cParams.delta_lowT;
++    float zrange_min = 0.01;  // Hard coded as it is in CPU
++    float delta_max = cParams.delta_lowT;
+     if (cParams.convergence_mode == 0) {
+       delta_max = delta_highT;
+     } else if (cParams.convergence_mode == 1) {
+@@ -874,7 +874,7 @@
+     int maxIterations = 1000;
+     set_vtx_range(acc, tracks, vertices, cParams, osumtkwt, beta, trackBlockSize);
+     // Accumulator of variations
+-    double delta_sum_range = 0;
++    float delta_sum_range = 0;
+     while (niter++ < maxIterations) {
+ #ifdef DEBUG_RECOVERTEX_PRIMARYVERTEXPRODUCER_CLUSTERIZERALGO
+       if (once_per_block(acc)) {
+@@ -885,7 +885,7 @@
+       }
+ #endif
+       update(acc, tracks, vertices, cParams, osumtkwt, beta, rho0, false, trackBlockSize);
+-      double dmax = 0.;
++      float dmax = 0.;
+       for (int ivertexO = maxVerticesPerBlock * blockIdx;
+            ivertexO < maxVerticesPerBlock * blockIdx + vertices[blockIdx].nV();
+            ivertexO++) {
+@@ -895,7 +895,7 @@
+       }
+       delta_sum_range += dmax;
+       // If a vertex moved too much we reassign
+-      if (delta_sum_range > zrange_min_ && dmax > zrange_min_) {
++      if (delta_sum_range > zrange_min && dmax > zrange_min) {
+ #ifdef DEBUG_RECOVERTEX_PRIMARYVERTEXPRODUCER_CLUSTERIZERALGO
+         if (once_per_block(acc)) {
+           printf(

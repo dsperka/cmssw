@@ -1,0 +1,14 @@
+diff -ruN /home/claude/scratch/campaign/snap/pre_b14_comments/RecoVertex/PrimaryVertexProducer/plugins/alpaka/DAInBlocksClusterizerMergeSplit.h /home/claude/scratch/campaign/snap/post_b14_comments/RecoVertex/PrimaryVertexProducer/plugins/alpaka/DAInBlocksClusterizerMergeSplit.h
+--- /home/claude/scratch/campaign/snap/pre_b14_comments/RecoVertex/PrimaryVertexProducer/plugins/alpaka/DAInBlocksClusterizerMergeSplit.h	2026-11-06 17:58:13.301636287 -0500
++++ /home/claude/scratch/campaign/snap/post_b14_comments/RecoVertex/PrimaryVertexProducer/plugins/alpaka/DAInBlocksClusterizerMergeSplit.h	2026-11-06 18:13:27.754688020 -0500
+@@ -349,7 +349,9 @@
+         }
+       }
+       if (nnew == noFreeSlot)
+-        break;  // Need to compute in all threads so all exit properly
++        break;  // No free slot left: leave the splitting loop.
++                 // Every thread runs the free-slot search above itself (instead of one thread publishing the result)
++                 // and they all read the same vertex state, so all of them take this branch together and exit consistently.
+       if (once_per_block(acc)) {
+         double pk1 = p1 * vertices[ivertex].rho() / (p1 + p2);
+         double pk2 = p2 * vertices[ivertex].rho() / (p1 + p2);

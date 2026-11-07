@@ -1,0 +1,101 @@
+diff -ruN /home/claude/scratch/campaign/snap/pre_b07_args_by_value/RecoVertex/PrimaryVertexProducer/plugins/alpaka/DAInBlocksClusterizerAlgo.dev.cc /home/claude/scratch/campaign/snap/post_b07_args_by_value/RecoVertex/PrimaryVertexProducer/plugins/alpaka/DAInBlocksClusterizerAlgo.dev.cc
+--- /home/claude/scratch/campaign/snap/pre_b07_args_by_value/RecoVertex/PrimaryVertexProducer/plugins/alpaka/DAInBlocksClusterizerAlgo.dev.cc	2026-11-06 16:48:01.345016322 -0500
++++ /home/claude/scratch/campaign/snap/post_b07_args_by_value/RecoVertex/PrimaryVertexProducer/plugins/alpaka/DAInBlocksClusterizerAlgo.dev.cc	2026-11-06 17:24:47.202356555 -0500
+@@ -180,7 +180,7 @@
+     ALPAKA_FN_ACC void operator()(const TAcc& acc,
+                                   TrackForVertexDeviceCollection::View tracks,
+                                   VertexDeviceCollection::View vertices,
+-                                  DAInBlocksClusterParameters const& cParams,
++                                  DAInBlocksClusterParameters const cParams,
+                                   double* beta_,
+                                   double* osumtkwt_,
+                                   int trackBlockSize) const {
+diff -ruN /home/claude/scratch/campaign/snap/pre_b07_args_by_value/RecoVertex/PrimaryVertexProducer/plugins/alpaka/DAInBlocksClusterizerArbitrator.dev.cc /home/claude/scratch/campaign/snap/post_b07_args_by_value/RecoVertex/PrimaryVertexProducer/plugins/alpaka/DAInBlocksClusterizerArbitrator.dev.cc
+--- /home/claude/scratch/campaign/snap/pre_b07_args_by_value/RecoVertex/PrimaryVertexProducer/plugins/alpaka/DAInBlocksClusterizerArbitrator.dev.cc	2026-11-06 16:48:01.345016322 -0500
++++ /home/claude/scratch/campaign/snap/post_b07_args_by_value/RecoVertex/PrimaryVertexProducer/plugins/alpaka/DAInBlocksClusterizerArbitrator.dev.cc	2026-11-06 17:24:47.203356555 -0500
+@@ -358,7 +358,7 @@
+     ALPAKA_FN_ACC void operator()(const TAcc& acc,
+                                   TrackForVertexDeviceCollection::View tracks,
+                                   VertexDeviceCollection::View vertices,
+-                                  DAInBlocksClusterParameters const& cParams,
++                                  DAInBlocksClusterParameters const cParams,
+                                   int32_t nBlocks) const {
+       // This has the core of the clusterization algorithm
+ #ifdef DEBUG_RECOVERTEX_PRIMARYVERTEXPRODUCER_ARBITRATOR
+diff -ruN /home/claude/scratch/campaign/snap/pre_b07_args_by_value/RecoVertex/PrimaryVertexProducer/plugins/alpaka/DAInBlocksClusterizerRejectOutliers.dev.cc /home/claude/scratch/campaign/snap/post_b07_args_by_value/RecoVertex/PrimaryVertexProducer/plugins/alpaka/DAInBlocksClusterizerRejectOutliers.dev.cc
+--- /home/claude/scratch/campaign/snap/pre_b07_args_by_value/RecoVertex/PrimaryVertexProducer/plugins/alpaka/DAInBlocksClusterizerRejectOutliers.dev.cc	2026-11-06 16:48:01.345016322 -0500
++++ /home/claude/scratch/campaign/snap/post_b07_args_by_value/RecoVertex/PrimaryVertexProducer/plugins/alpaka/DAInBlocksClusterizerRejectOutliers.dev.cc	2026-11-06 17:24:47.202356555 -0500
+@@ -72,7 +72,7 @@
+     ALPAKA_FN_ACC void operator()(const TAcc& acc,
+                                   TrackForVertexDeviceCollection::View tracks,
+                                   VertexDeviceCollection::View vertices,
+-                                  DAInBlocksClusterParameters const& cParams,
++                                  DAInBlocksClusterParameters const cParams,
+                                   double* beta_,
+                                   double* osumtkwt_,
+                                   int trackBlockSize) const {
+diff -ruN /home/claude/scratch/campaign/snap/pre_b07_args_by_value/RecoVertex/PrimaryVertexProducer/plugins/alpaka/DAInBlocksClusterizerReSplitTracks.dev.cc /home/claude/scratch/campaign/snap/post_b07_args_by_value/RecoVertex/PrimaryVertexProducer/plugins/alpaka/DAInBlocksClusterizerReSplitTracks.dev.cc
+--- /home/claude/scratch/campaign/snap/pre_b07_args_by_value/RecoVertex/PrimaryVertexProducer/plugins/alpaka/DAInBlocksClusterizerReSplitTracks.dev.cc	2026-11-06 16:48:01.345016322 -0500
++++ /home/claude/scratch/campaign/snap/post_b07_args_by_value/RecoVertex/PrimaryVertexProducer/plugins/alpaka/DAInBlocksClusterizerReSplitTracks.dev.cc	2026-11-06 17:24:47.202356555 -0500
+@@ -44,7 +44,7 @@
+     ALPAKA_FN_ACC void operator()(const TAcc& acc,
+                                   TrackForVertexDeviceCollection::View tracks,
+                                   VertexDeviceCollection::View vertices,
+-                                  DAInBlocksClusterParameters const& cParams,
++                                  DAInBlocksClusterParameters const cParams,
+                                   double* beta_,
+                                   double* osumtkwt_,
+                                   int trackBlockSize) const {
+diff -ruN /home/claude/scratch/campaign/snap/pre_b07_args_by_value/RecoVertex/PrimaryVertexProducer/plugins/alpaka/WeightedVertexFitterAlgo.dev.cc /home/claude/scratch/campaign/snap/post_b07_args_by_value/RecoVertex/PrimaryVertexProducer/plugins/alpaka/WeightedVertexFitterAlgo.dev.cc
+--- /home/claude/scratch/campaign/snap/pre_b07_args_by_value/RecoVertex/PrimaryVertexProducer/plugins/alpaka/WeightedVertexFitterAlgo.dev.cc	2026-11-06 16:48:01.345016322 -0500
++++ /home/claude/scratch/campaign/snap/post_b07_args_by_value/RecoVertex/PrimaryVertexProducer/plugins/alpaka/WeightedVertexFitterAlgo.dev.cc	2026-11-06 17:24:47.203356555 -0500
+@@ -17,7 +17,7 @@
+                                   const TrackForVertexDeviceCollection::ConstView tracks,
+                                   VertexDeviceCollection::View vertices,
+                                   BeamSpotPOD const* beamSpot,
+-                                  bool* useBeamSpotConstraint) const {
++                                  bool useBeamSpotConstraint) const {
+ #ifdef DEBUG_RECOVERTEX_PRIMARYVERTEXPRODUCER_FITTERALGO
+       if (once_per_block(acc)) {
+         printf("[WeightedVertexFitterAlgo::FitVertices()] In Vertex 0, %i tracks\n", vertices[0].ntracks());
+@@ -47,7 +47,7 @@
+       float bserry = 0.;
+       float bsx = 0.;
+       float bsy = 0.;
+-      if (*useBeamSpotConstraint) {
++      if (useBeamSpotConstraint) {
+         bserrx = beamSpot->beamWidthX < precisionsq ? 1. / (precisionsq) : 1. / (beamSpot->beamWidthX);
+         bserry = beamSpot->beamWidthY < precisionsq ? 1. / (precisionsq) : 1. / (beamSpot->beamWidthY);
+         bsx = beamSpot->x;
+@@ -330,10 +330,7 @@
+   };  // class FitVertices
+ 
+   WeightedVertexFitterAlgo::WeightedVertexFitterAlgo(Queue& queue, FitterParameters fPar)
+-      : useBeamSpotConstraint(cms::alpakatools::make_device_buffer<bool>(queue)) {
+-    // Set fitter parameters
+-    alpaka::memset(queue, useBeamSpotConstraint, fPar.useBeamSpotConstraint);
+-  }  // WeightedVertexFitterAlgo::WeightedVertexFitterAlgo
++      : useBeamSpotConstraint_(fPar.useBeamSpotConstraint) {}  // WeightedVertexFitterAlgo::WeightedVertexFitterAlgo
+ 
+   void WeightedVertexFitterAlgo::fit(Queue& queue,
+                                      const TrackForVertexDeviceCollection& deviceTrack,
+@@ -349,6 +346,6 @@
+                         deviceTrack.view(),
+                         deviceVertex.view(),
+                         deviceBeamSpot.data(),
+-                        useBeamSpotConstraint.data());
++                        useBeamSpotConstraint_);
+   }  // WeightedVertexFitterAlgo::fit
+ }  // namespace ALPAKA_ACCELERATOR_NAMESPACE
+diff -ruN /home/claude/scratch/campaign/snap/pre_b07_args_by_value/RecoVertex/PrimaryVertexProducer/plugins/alpaka/WeightedVertexFitterAlgo.h /home/claude/scratch/campaign/snap/post_b07_args_by_value/RecoVertex/PrimaryVertexProducer/plugins/alpaka/WeightedVertexFitterAlgo.h
+--- /home/claude/scratch/campaign/snap/pre_b07_args_by_value/RecoVertex/PrimaryVertexProducer/plugins/alpaka/WeightedVertexFitterAlgo.h	2026-11-06 16:48:01.345016322 -0500
++++ /home/claude/scratch/campaign/snap/post_b07_args_by_value/RecoVertex/PrimaryVertexProducer/plugins/alpaka/WeightedVertexFitterAlgo.h	2026-11-06 17:24:47.203356555 -0500
+@@ -22,7 +22,7 @@
+              const BeamSpotDevice& deviceBeamSpot);
+ 
+   private:
+-    cms::alpakatools::device_buffer<Device, bool> useBeamSpotConstraint;
++    bool useBeamSpotConstraint_;
+   };
+ 
+ }  // namespace ALPAKA_ACCELERATOR_NAMESPACE

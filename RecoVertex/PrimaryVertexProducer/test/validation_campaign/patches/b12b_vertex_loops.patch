@@ -1,0 +1,109 @@
+diff -ruN /home/claude/scratch/campaign/snap/pre_b12b_vertex_loops/RecoVertex/PrimaryVertexProducer/plugins/alpaka/DAInBlocksClusterizerAlgo.dev.cc /home/claude/scratch/campaign/snap/post_b12b_vertex_loops/RecoVertex/PrimaryVertexProducer/plugins/alpaka/DAInBlocksClusterizerAlgo.dev.cc
+--- /home/claude/scratch/campaign/snap/pre_b12b_vertex_loops/RecoVertex/PrimaryVertexProducer/plugins/alpaka/DAInBlocksClusterizerAlgo.dev.cc	2026-11-06 19:32:35.221900359 -0500
++++ /home/claude/scratch/campaign/snap/post_b12b_vertex_loops/RecoVertex/PrimaryVertexProducer/plugins/alpaka/DAInBlocksClusterizerAlgo.dev.cc	2026-11-06 19:48:39.650062052 -0500
+@@ -17,14 +17,11 @@
+                                        DAInBlocksClusterParameters const& cParams,
+                                        int trackBlockSize) {
+     // Initialize all vertices as empty, a single vertex in each block will be initialized with all tracks associated to it
+-    int blockSize = alpaka::getWorkDiv<alpaka::Block, alpaka::Threads>(acc)[0u];
+-    int threadIdx = alpaka::getIdx<alpaka::Block, alpaka::Threads>(acc)[0u];
+     int blockIdx = alpaka::getIdx<alpaka::Grid, alpaka::Blocks>(acc)[0u];
+     int maxVerticesPerBlock = (int)1024 / alpaka::getWorkDiv<alpaka::Grid, alpaka::Blocks>(acc)[0u];
+     vertices[blockIdx].nV() = 1;
+-    for (int ivertex = threadIdx + maxVerticesPerBlock * blockIdx; ivertex < maxVerticesPerBlock * (blockIdx + 1);
+-         ivertex +=
+-         blockSize) {  // Initialize vertices in parallel in the block. Note that a block of threads should always be restricted to oeprations within maxVerticesPerBlock*blockIdx and maxVerticesPerBlock*(blockIdx+1)-1 to avoid running conditions
++    for (int ivertexI : independent_group_elements(acc, maxVerticesPerBlock)) {  // Initialize vertices in parallel in the block. Note that a block of threads should always be restricted to oeprations within maxVerticesPerBlock*blockIdx and maxVerticesPerBlock*(blockIdx+1)-1 to avoid running conditions
++      int ivertex = ivertexI + maxVerticesPerBlock * blockIdx;
+       vertices[ivertex].sw() = 0.;
+       vertices[ivertex].swE() = 0.;
+       vertices[ivertex].z() = 0.;
+diff -ruN /home/claude/scratch/campaign/snap/pre_b12b_vertex_loops/RecoVertex/PrimaryVertexProducer/plugins/alpaka/DAInBlocksClusterizerMergeSplit.h /home/claude/scratch/campaign/snap/post_b12b_vertex_loops/RecoVertex/PrimaryVertexProducer/plugins/alpaka/DAInBlocksClusterizerMergeSplit.h
+--- /home/claude/scratch/campaign/snap/pre_b12b_vertex_loops/RecoVertex/PrimaryVertexProducer/plugins/alpaka/DAInBlocksClusterizerMergeSplit.h	2026-11-06 19:32:35.221900359 -0500
++++ /home/claude/scratch/campaign/snap/post_b12b_vertex_loops/RecoVertex/PrimaryVertexProducer/plugins/alpaka/DAInBlocksClusterizerMergeSplit.h	2026-11-06 19:48:39.653062052 -0500
+@@ -26,8 +26,6 @@
+                                   double& beta,
+                                   int trackBlockSize) {
+     // If two vertex are too close together, merge them
+-    int blockSize = alpaka::getWorkDiv<alpaka::Block, alpaka::Threads>(acc)[0u];
+-    int threadIdx = alpaka::getIdx<alpaka::Block, alpaka::Threads>(acc)[0u];
+     int blockIdx = alpaka::getIdx<alpaka::Grid, alpaka::Blocks>(acc)[0u];
+     int maxVerticesPerBlock = (int)1024 / alpaka::getWorkDiv<alpaka::Grid, alpaka::Blocks>(acc)[0u];
+     int nprev = vertices[blockIdx].nV();
+@@ -38,9 +36,8 @@
+ #endif
+     if (nprev < 2)
+       return;
+-    for (int ivertexO = maxVerticesPerBlock * blockIdx + threadIdx;
+-         ivertexO < maxVerticesPerBlock * blockIdx + vertices[blockIdx].nV() - 1;
+-         ivertexO += blockSize) {
++    for (int ivertexB : independent_group_elements(acc, vertices[blockIdx].nV() - 1)) {
++      int ivertexO = maxVerticesPerBlock * blockIdx + ivertexB;
+       int ivertex = vertices[ivertexO].order();
+       int ivertexnext = vertices[ivertexO + 1].order();
+       vertices[ivertex].aux1() = alpaka::math::abs(acc, vertices[ivertex].z() - vertices[ivertexnext].z());
+@@ -165,17 +162,14 @@
+                                   double& beta,
+                                   double threshold,
+                                   int trackBlockSize) {
+-    int blockSize = alpaka::getWorkDiv<alpaka::Block, alpaka::Threads>(acc)[0u];
+-    int threadIdx = alpaka::getIdx<alpaka::Block, alpaka::Threads>(acc)[0u];
+     int blockIdx = alpaka::getIdx<alpaka::Grid, alpaka::Blocks>(acc)[0u];
+     int maxVerticesPerBlock = (int)1024 / alpaka::getWorkDiv<alpaka::Grid, alpaka::Blocks>(acc)[0u];
+     update(acc, tracks, vertices, cParams, osumtkwt, beta, 0.0, true, trackBlockSize);
+     double epsilon = 1e-3;
+     int nprev = vertices[blockIdx].nV();
+     // Set critical T for all vertices
+-    for (int ivertexO = maxVerticesPerBlock * blockIdx + threadIdx;
+-         ivertexO < maxVerticesPerBlock * blockIdx + vertices[blockIdx].nV();
+-         ivertexO += blockSize) {
++    for (int ivertexB : independent_group_elements(acc, vertices[blockIdx].nV())) {
++      int ivertexO = maxVerticesPerBlock * blockIdx + ivertexB;
+       int ivertex = vertices[ivertexO].order();
+       double Tc = 2 * vertices[ivertex].swE() / vertices[ivertex].sw();
+       vertices[ivertex].aux1() = Tc;
+@@ -413,8 +407,6 @@
+                                   double rho0,
+                                   int trackBlockSize) {
+     // Remove repetitive or low quality entries
+-    int blockSize = alpaka::getWorkDiv<alpaka::Block, alpaka::Threads>(acc)[0u];
+-    int threadIdx = alpaka::getIdx<alpaka::Block, alpaka::Threads>(acc)[0u];
+     int blockIdx = alpaka::getIdx<alpaka::Grid, alpaka::Blocks>(acc)[0u];
+     int maxVerticesPerBlock = (int)1024 / alpaka::getWorkDiv<alpaka::Grid, alpaka::Blocks>(acc)[0u];
+     if (vertices[blockIdx].nV() < 2)
+@@ -425,9 +417,8 @@
+     int nprev = vertices[blockIdx].nV();
+     // Reassign
+     set_vtx_range(acc, tracks, vertices, cParams, osumtkwt, beta, trackBlockSize);
+-    for (int ivertexO = maxVerticesPerBlock * blockIdx + threadIdx;
+-         ivertexO < maxVerticesPerBlock * blockIdx + vertices[blockIdx].nV();
+-         ivertexO += blockSize) {
++    for (int ivertexB : independent_group_elements(acc, vertices[blockIdx].nV())) {
++      int ivertexO = maxVerticesPerBlock * blockIdx + ivertexB;
+       int ivertex = vertices[ivertexO].order();
+       vertices[ivertex].aux1() = 0;  // sum of track-vertex probabilities
+       vertices[ivertex].aux2() = 0;  // number of uniquely assigned tracks
+diff -ruN /home/claude/scratch/campaign/snap/pre_b12b_vertex_loops/RecoVertex/PrimaryVertexProducer/plugins/alpaka/DAInBlocksClusterizerPrimitives.h /home/claude/scratch/campaign/snap/post_b12b_vertex_loops/RecoVertex/PrimaryVertexProducer/plugins/alpaka/DAInBlocksClusterizerPrimitives.h
+--- /home/claude/scratch/campaign/snap/pre_b12b_vertex_loops/RecoVertex/PrimaryVertexProducer/plugins/alpaka/DAInBlocksClusterizerPrimitives.h	2026-11-06 19:32:35.221900359 -0500
++++ /home/claude/scratch/campaign/snap/post_b12b_vertex_loops/RecoVertex/PrimaryVertexProducer/plugins/alpaka/DAInBlocksClusterizerPrimitives.h	2026-11-06 19:48:39.654062052 -0500
+@@ -120,8 +120,6 @@
+                                    bool updateTc,
+                                    int trackBlockSize) {
+     // Main function that updates the annealing parameters on each T step, computes all partition functions and so on
+-    int blockSize = alpaka::getWorkDiv<alpaka::Block, alpaka::Threads>(acc)[0u];
+-    int threadIdx = alpaka::getIdx<alpaka::Block, alpaka::Threads>(acc)[0u];  // Thread number inside block
+     int blockIdx = alpaka::getIdx<alpaka::Grid, alpaka::Blocks>(acc)[0u];     // Block number inside grid
+     int maxVerticesPerBlock = (int)1024 / alpaka::getWorkDiv<alpaka::Grid, alpaka::Blocks>(
+                                               acc)[0u];  // Max vertices size is 1024 over number of blocks in grid
+@@ -166,9 +164,8 @@
+     }  //end track for
+     alpaka::syncBlockThreads(acc);
+     // After the track-vertex matrix assignment, we need to add up across vertices. This time, we use one thread per vertex
+-    for (int ivertexO = maxVerticesPerBlock * blockIdx + threadIdx;
+-         ivertexO < maxVerticesPerBlock * blockIdx + vertices[blockIdx].nV();
+-         ivertexO += blockSize) {
++    for (int ivertexB : independent_group_elements(acc, vertices[blockIdx].nV())) {
++      int ivertexO = maxVerticesPerBlock * blockIdx + ivertexB;
+       int ivertex = vertices[ivertexO].order();
+       float se = 0.;
+       float sw = 0.;

@@ -5,6 +5,8 @@
 #include "DataFormats/VertexSoA/interface/VertexSoA.h"
 
 // SoA with x, y, z, id fields in host memory
-using VertexHostCollection = PortableHostCollection<VertexSoA>;
+namespace reco {
+  using VertexHostCollection = PortableHostCollection<VertexSoA>;
+}  // namespace reco
 
 #endif  // DataFormats_VertexSoA_interface_VertexHostCollection_h

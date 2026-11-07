@@ -1,0 +1,218 @@
+diff -ruN /home/claude/scratch/campaign/snap/pre_b16a_track_producer/RecoVertex/PrimaryVertexProducer/plugins/alpaka/PortableTrackSoAProducer.cc /home/claude/scratch/campaign/snap/post_b16a_track_producer/RecoVertex/PrimaryVertexProducer/plugins/alpaka/PortableTrackSoAProducer.cc
+--- /home/claude/scratch/campaign/snap/pre_b16a_track_producer/RecoVertex/PrimaryVertexProducer/plugins/alpaka/PortableTrackSoAProducer.cc	2026-11-06 18:29:16.015694765 -0500
++++ /home/claude/scratch/campaign/snap/post_b16a_track_producer/RecoVertex/PrimaryVertexProducer/plugins/alpaka/PortableTrackSoAProducer.cc	2026-11-06 18:45:16.898828943 -0500
+@@ -1,3 +1,6 @@
++#include <algorithm>
++#include <type_traits>
++
+ #include "DataFormats/VertexSoA/interface/alpaka/VertexDeviceCollection.h"
+ #include "DataFormats/VertexSoA/interface/alpaka/TrackForVertexDeviceCollection.h"
+ #include "DataFormats/VertexSoA/interface/VertexHostCollection.h"
+@@ -30,6 +33,23 @@
+    * - puts the Alpaka dataformat in the device for later consumption
+    */
+   struct TrackFilterParametersForVertexing {
++    explicit TrackFilterParametersForVertexing(edm::ParameterSet const& pset)
++        : maxSignificance(pset.getParameter<double>("maxD0Significance")),
++          maxdxyError(pset.getParameter<double>("maxD0Error")),
++          maxdzError(pset.getParameter<double>("maxDzError")),
++          minpAtIP(pset.getParameter<double>("minPt")),
++          maxetaAtIP(pset.getParameter<double>("maxEta")),
++          maxchi2(pset.getParameter<double>("maxNormalizedChi2")),
++          minpixelHits(pset.getParameter<int>("minPixelLayersWithHits")),
++          mintrackerHits(pset.getParameter<int>("minSiliconLayersWithHits")),
++          trackQuality(reco::TrackBase::undefQuality),
++          vertexSize(pset.getParameter<double>("vertexSize")),
++          d0CutOff(pset.getParameter<double>("d0CutOff")) {
++      std::string const qualityClass = pset.getParameter<std::string>("trackQuality");
++      if (qualityClass != "any" && qualityClass != "Any" && qualityClass != "ANY" && !(qualityClass.empty()))
++        trackQuality = reco::TrackBase::qualityByName(qualityClass);
++    }
++
+     // Configurable filter parameters for the tracks
+     double maxSignificance;
+     double maxdxyError;
+@@ -51,45 +71,15 @@
+           theTTBToken_(esConsumes(edm::ESInputTag("", "TransientTrackBuilder"))),
+           trackToken_(consumes<reco::TrackCollection>(config.getParameter<edm::InputTag>("TrackLabel"))),
+           beamSpotToken_(consumes<reco::BeamSpot>(config.getParameter<edm::InputTag>("BeamSpotLabel"))),
+-          fParams(
+-              {.maxSignificance = config.getParameter<edm::ParameterSet>("TkFilterParameters")
+-                                      .getParameter<double>("maxD0Significance"),
+-               .maxdxyError =
+-                   config.getParameter<edm::ParameterSet>("TkFilterParameters").getParameter<double>("maxD0Error"),
+-               .maxdzError =
+-                   config.getParameter<edm::ParameterSet>("TkFilterParameters").getParameter<double>("maxDzError"),
+-               .minpAtIP = config.getParameter<edm::ParameterSet>("TkFilterParameters").getParameter<double>("minPt"),
+-               .maxetaAtIP =
+-                   config.getParameter<edm::ParameterSet>("TkFilterParameters").getParameter<double>("maxEta"),
+-               .maxchi2 = config.getParameter<edm::ParameterSet>("TkFilterParameters")
+-                              .getParameter<double>("maxNormalizedChi2"),
+-               .minpixelHits = config.getParameter<edm::ParameterSet>("TkFilterParameters")
+-                                   .getParameter<int>("minPixelLayersWithHits"),
+-               .mintrackerHits = config.getParameter<edm::ParameterSet>("TkFilterParameters")
+-                                     .getParameter<int>("minSiliconLayersWithHits"),
+-               .trackQuality = reco::TrackBase::undefQuality,
+-               .vertexSize =
+-                   config.getParameter<edm::ParameterSet>("TkFilterParameters").getParameter<double>("vertexSize"),
+-               .d0CutOff =
+-                   config.getParameter<edm::ParameterSet>("TkFilterParameters").getParameter<double>("d0CutOff")}) {
++          fParams(config.getParameter<edm::ParameterSet>("TkFilterParameters")) {
+       devicePutToken_ = produces();
+-      std::string qualityClass =
+-          config.getParameter<edm::ParameterSet>("TkFilterParameters").getParameter<std::string>("trackQuality");
+-      if (qualityClass != "any" && qualityClass != "Any" && qualityClass != "ANY" && !(qualityClass.empty()))
+-        fParams.trackQuality = reco::TrackBase::qualityByName(qualityClass);
+     }
+ 
+     void produce(edm::StreamID sid, device::Event& iEvent, device::EventSetup const& iSetup) const override {
+       // Get input collections from event
+       auto tracks = iEvent.getHandle(trackToken_);
+-      auto beamSpotHandle = iEvent.getHandle(beamSpotToken_);
+-      reco::BeamSpot beamSpot;
+-      if (beamSpotHandle.isValid())
+-        beamSpot = *beamSpotHandle;
+-      else
+-        throw cms::Exception("FatalError")
+-            << "[PortableTrackSoAProducer::produce] Unable to find valid BeamSpot in event\n";
+-      int32_t tsize_ = tracks.product()->size();
++      const reco::BeamSpot& beamSpot = iEvent.get(beamSpotToken_);
++      int32_t tsize_ = tracks->size();
+ 
+       // Host collections
+       TrackForVertexHostCollection hostTracks(iEvent.queue(), tsize_);
+@@ -100,37 +90,30 @@
+       tview.nT() = 0;
+ 
+       // Build transient tracks
+-      const auto& theB = &iSetup.getData(theTTBToken_);
+-      std::vector<reco::TransientTrack> t_tks = (*theB).build(tracks, beamSpot);
++      const auto& theB = iSetup.getData(theTTBToken_);
++      std::vector<reco::TransientTrack> t_tks = theB.build(tracks, beamSpot);
+ 
+-      // We want to keep track of the original reco::Track index to later redo the conversion back to reco::Vertex
+-      std::vector<std::pair<int32_t, reco::TransientTrack>> sortedTracksPair;
+-      sortedTracksPair.reserve(tsize_);
++      // Sort by z at the beam line. stateAtBeamLine() returns by value, so evaluate z once per track rather than
++      // twice per comparison. The index into the reco::Track collection travels along, to later redo the
++      // conversion back to reco::Vertex.
++      using ZType = std::decay_t<decltype(t_tks.front().stateAtBeamLine().trackStateAtPCA().position().z())>;
++      std::vector<std::pair<ZType, int32_t>> sortedZAndIndex;
++      sortedZAndIndex.reserve(tsize_);
+       for (int32_t idx = 0; idx < tsize_; idx++) {
+-        sortedTracksPair.emplace_back(idx, t_tks[idx]);
++        sortedZAndIndex.emplace_back(t_tks[idx].stateAtBeamLine().trackStateAtPCA().position().z(), idx);
+       }
+-
+-      std::sort(sortedTracksPair.begin(),
+-                sortedTracksPair.end(),
+-                [](const std::pair<int32_t, reco::TransientTrack>& a,
+-                   const std::pair<int32_t, reco::TransientTrack>& b) -> bool {
+-                  return (a.second.stateAtBeamLine().trackStateAtPCA()).position().z() <
+-                         (b.second.stateAtBeamLine().trackStateAtPCA()).position().z();
+-                });
++      std::sort(sortedZAndIndex.begin(), sortedZAndIndex.end(), [](auto const& a, auto const& b) {
++        return a.first < b.first;
++      });
+       // This will keep track of how many we actually copy to device, only those that pass filter
+       int32_t nTrueTracks = 0;
+       for (int32_t idx = 0; idx < tsize_; idx++) {
+         // Fill up the the Track SoA, weight doubles up as an isGood flag, as we compute it only for good tracks
+-        double weight = convertTrack(tview[nTrueTracks],
+-                                     sortedTracksPair[idx].second,
+-                                     beamSpot,
+-                                     fParams,
+-                                     sortedTracksPair[idx].first,
+-                                     nTrueTracks);
++        const int32_t trackIdx = sortedZAndIndex[idx].second;
++        double weight = convertTrack(tview[nTrueTracks], t_tks[trackIdx], beamSpot, trackIdx, nTrueTracks);
+         if (weight > 0) {
+ #ifdef DEBUG_RECOVERTEX_PRIMARYVERTEXPRODUCER_ALPAKA_PORTABLETRACKSOAPRODUCER
+-          printf("[PortableTrackSoAProducer::produce()] Add track at z=%1.5f \n",
+-                 sortedTracksPair[idx].second.stateAtBeamLine().trackStateAtPCA().position().z());
++          printf("[PortableTrackSoAProducer::produce()] Add track at z=%1.5f \n", sortedZAndIndex[idx].first);
+ #endif
+           nTrueTracks += 1;
+           tview.nT() += 1;
+@@ -177,25 +160,25 @@
+     const edm::EDGetTokenT<reco::TrackCollection> trackToken_;
+     const edm::EDGetTokenT<reco::BeamSpot> beamSpotToken_;
+     device::EDPutToken<TrackForVertexDeviceCollection> devicePutToken_;
+-    static double convertTrack(TrackForVertexHostCollection::View::element out,
+-                               const reco::TransientTrack& in,
+-                               const reco::BeamSpot& bs,
+-                               const TrackFilterParametersForVertexing& fParams,
+-                               int32_t idx,
+-                               int32_t order);
+-    TrackFilterParametersForVertexing fParams;
++    double convertTrack(TrackForVertexHostCollection::View::element out,
++                        const reco::TransientTrack& in,
++                        const reco::BeamSpot& bs,
++                        int32_t idx,
++                        int32_t order) const;
++    const TrackFilterParametersForVertexing fParams;
+   };  //PortableTrackSoAProducer declaration
+ 
+   double PortableTrackSoAProducer::convertTrack(TrackForVertexHostCollection::View::element out,
+                                                 const reco::TransientTrack& in,
+                                                 const reco::BeamSpot& bs,
+-                                                const TrackFilterParametersForVertexing& fParams,
+                                                 int32_t idx,
+-                                                int32_t order) {
++                                                int32_t order) const {
+     double weight = -1;
++    // stateAtBeamLine() returns by value, and so do the quantities derived from it: evaluate each of them once
++    const auto stateAtBeamLine = in.stateAtBeamLine();
++    const auto transverseIP = stateAtBeamLine.transverseImpactParameter();
+     // First check if it passes filters
+-    if ((in.stateAtBeamLine().transverseImpactParameter().significance() < fParams.maxSignificance) &&
+-        (in.stateAtBeamLine().transverseImpactParameter().error() < fParams.maxdxyError) &&
++    if ((transverseIP.significance() < fParams.maxSignificance) && (transverseIP.error() < fParams.maxdxyError) &&
+         (in.track().dzError() < fParams.maxdzError) &&
+         (in.impactPointState().globalMomentum().transverse() > fParams.minpAtIP) &&
+         (std::fabs(in.impactPointState().globalMomentum().eta()) < fParams.maxetaAtIP) &&
+@@ -206,18 +189,20 @@
+       weight = 1.;
+       if (fParams.d0CutOff > 0) {
+         // significance is measured in the transverse plane
+-        double significance = in.stateAtBeamLine().transverseImpactParameter().value() /
+-                              in.stateAtBeamLine().transverseImpactParameter().error();
++        double significance = transverseIP.value() / transverseIP.error();
+         // weight is based on transverse displacement of the track
+         weight = 1. / (1. + exp(std::pow(significance, 2) - std::pow(fParams.d0CutOff, 2)));
+       }
++      const auto trackStateAtPCA = stateAtBeamLine.trackStateAtPCA();
++      const auto position = trackStateAtPCA.position();
++      const auto momentum = trackStateAtPCA.momentum();
+       // Just fill up variables
+-      out.x() = in.stateAtBeamLine().trackStateAtPCA().position().x();
+-      out.y() = in.stateAtBeamLine().trackStateAtPCA().position().y();
+-      out.z() = in.stateAtBeamLine().trackStateAtPCA().position().z();
+-      out.px() = in.stateAtBeamLine().trackStateAtPCA().momentum().x();
+-      out.py() = in.stateAtBeamLine().trackStateAtPCA().momentum().y();
+-      out.pz() = in.stateAtBeamLine().trackStateAtPCA().momentum().z();
++      out.x() = position.x();
++      out.y() = position.y();
++      out.z() = position.z();
++      out.px() = momentum.x();
++      out.py() = momentum.y();
++      out.pz() = momentum.z();
+       out.weight() = weight;
+       // The original index in the reco::Track collection so we can go back to it eventually
+       out.ttIndex() = idx;
+@@ -226,13 +211,12 @@
+       // dz^2 + (bs*pt)^2*pz^2/pt^2 + vertexSize^2
+       double oneoverdz2 = (out.dz2()) +
+                           ((std::pow(bs.BeamWidthX() * out.px(), 2)) + (std::pow(bs.BeamWidthY() * out.py(), 2))) *
+-                              std::pow(out.pz(), 2) /
+-                              std::pow(in.stateAtBeamLine().trackStateAtPCA().momentum().perp2(), 2) +
++                              std::pow(out.pz(), 2) / std::pow(momentum.perp2(), 2) +
+                           std::pow(fParams.vertexSize, 2);
+       oneoverdz2 = 1. / oneoverdz2;
+       out.oneoverdz2() = oneoverdz2;
+       out.dxy2AtIP() = std::pow(in.track().dxyError(), 2);
+-      out.dxy2() = std::pow(in.stateAtBeamLine().transverseImpactParameter().error(), 2);
++      out.dxy2() = std::pow(transverseIP.error(), 2);
+       out.order() = order;
+       // All of these are initializers for the vertexing
+       out.sum_Z() = 0;      // partition function sum

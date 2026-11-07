@@ -1,0 +1,210 @@
+diff -ruN /home/claude/scratch/campaign/snap/pre_b11_df_namespace/DataFormats/VertexSoA/interface/alpaka/TrackForVertexDeviceCollection.h /home/claude/scratch/campaign/snap/post_b11_df_namespace/DataFormats/VertexSoA/interface/alpaka/TrackForVertexDeviceCollection.h
+--- /home/claude/scratch/campaign/snap/pre_b11_df_namespace/DataFormats/VertexSoA/interface/alpaka/TrackForVertexDeviceCollection.h	2026-11-06 13:22:23.565468598 -0500
++++ /home/claude/scratch/campaign/snap/post_b11_df_namespace/DataFormats/VertexSoA/interface/alpaka/TrackForVertexDeviceCollection.h	2026-11-07 04:53:43.936497077 -0500
+@@ -7,9 +7,9 @@
+ #include "HeterogeneousCore/AlpakaInterface/interface/config.h"
+ 
+ namespace ALPAKA_ACCELERATOR_NAMESPACE {
+-  using ::TrackForVertexHostCollection;
++  using ::reco::TrackForVertexHostCollection;
+ 
+-  using TrackForVertexDeviceCollection = PortableCollection<::TrackForVertexSoA>;
++  using TrackForVertexDeviceCollection = PortableCollection<::reco::TrackForVertexSoA>;
+ 
+ }  // namespace ALPAKA_ACCELERATOR_NAMESPACE
+ 
+diff -ruN /home/claude/scratch/campaign/snap/pre_b11_df_namespace/DataFormats/VertexSoA/interface/alpaka/VertexDeviceCollection.h /home/claude/scratch/campaign/snap/post_b11_df_namespace/DataFormats/VertexSoA/interface/alpaka/VertexDeviceCollection.h
+--- /home/claude/scratch/campaign/snap/pre_b11_df_namespace/DataFormats/VertexSoA/interface/alpaka/VertexDeviceCollection.h	2026-11-06 13:22:23.565468598 -0500
++++ /home/claude/scratch/campaign/snap/post_b11_df_namespace/DataFormats/VertexSoA/interface/alpaka/VertexDeviceCollection.h	2026-11-07 04:53:43.936497077 -0500
+@@ -7,9 +7,9 @@
+ #include "HeterogeneousCore/AlpakaInterface/interface/config.h"
+ 
+ namespace ALPAKA_ACCELERATOR_NAMESPACE {
+-  using ::VertexHostCollection;
++  using ::reco::VertexHostCollection;
+ 
+-  using VertexDeviceCollection = PortableCollection<::VertexSoA>;
++  using VertexDeviceCollection = PortableCollection<::reco::VertexSoA>;
+ 
+ }  // namespace ALPAKA_ACCELERATOR_NAMESPACE
+ 
+diff -ruN /home/claude/scratch/campaign/snap/pre_b11_df_namespace/DataFormats/VertexSoA/interface/TrackForVertexHostCollection.h /home/claude/scratch/campaign/snap/post_b11_df_namespace/DataFormats/VertexSoA/interface/TrackForVertexHostCollection.h
+--- /home/claude/scratch/campaign/snap/pre_b11_df_namespace/DataFormats/VertexSoA/interface/TrackForVertexHostCollection.h	2026-11-07 04:21:27.406013072 -0500
++++ /home/claude/scratch/campaign/snap/post_b11_df_namespace/DataFormats/VertexSoA/interface/TrackForVertexHostCollection.h	2026-11-07 04:53:43.891497063 -0500
+@@ -5,6 +5,8 @@
+ #include "DataFormats/VertexSoA/interface/TrackForVertexSoA.h"
+ 
+ // SoA with x, y, z, id fields in host memory
+-using TrackForVertexHostCollection = PortableHostCollection<TrackForVertexSoA>;
++namespace reco {
++  using TrackForVertexHostCollection = PortableHostCollection<TrackForVertexSoA>;
++}  // namespace reco
+ 
+ #endif  // DataFormats_VertexSoA_interface_TrackForVertexHostCollection_h
+diff -ruN /home/claude/scratch/campaign/snap/pre_b11_df_namespace/DataFormats/VertexSoA/interface/TrackForVertexSoA.h /home/claude/scratch/campaign/snap/post_b11_df_namespace/DataFormats/VertexSoA/interface/TrackForVertexSoA.h
+--- /home/claude/scratch/campaign/snap/pre_b11_df_namespace/DataFormats/VertexSoA/interface/TrackForVertexSoA.h	2026-11-07 04:21:27.406013072 -0500
++++ /home/claude/scratch/campaign/snap/post_b11_df_namespace/DataFormats/VertexSoA/interface/TrackForVertexSoA.h	2026-11-07 04:53:43.890497063 -0500
+@@ -9,9 +9,8 @@
+ namespace reco {
+   // Capacity of the per-track vertex vectors in TrackForVertexSoA (maximum number of vertices, in total, that a track can be compared against)
+   constexpr int maxTotalVertexForDeterministicAnnealing = 1024;
+-}  // namespace reco
+ 
+-using TrackToVertex = Eigen::Vector<float, reco::maxTotalVertexForDeterministicAnnealing>;
++  using TrackToVertex = Eigen::Vector<float, maxTotalVertexForDeterministicAnnealing>;
+ GENERATE_SOA_LAYOUT(TrackForVertexSoALayout,
+                     // columns: one value per element
+                     SOA_COLUMN(float, dxy2),
+@@ -59,5 +58,6 @@
+                     SOA_SCALAR(float, totweight))
+ 
+ using TrackForVertexSoA = TrackForVertexSoALayout<>;
++}  // namespace reco
+ 
+ #endif  // DataFormats_VertexSoA_interface_TrackForVertexSoA_h
+diff -ruN /home/claude/scratch/campaign/snap/pre_b11_df_namespace/DataFormats/VertexSoA/interface/VertexHostCollection.h /home/claude/scratch/campaign/snap/post_b11_df_namespace/DataFormats/VertexSoA/interface/VertexHostCollection.h
+--- /home/claude/scratch/campaign/snap/pre_b11_df_namespace/DataFormats/VertexSoA/interface/VertexHostCollection.h	2026-11-07 04:21:27.406013072 -0500
++++ /home/claude/scratch/campaign/snap/post_b11_df_namespace/DataFormats/VertexSoA/interface/VertexHostCollection.h	2026-11-07 04:53:43.891497063 -0500
+@@ -5,6 +5,8 @@
+ #include "DataFormats/VertexSoA/interface/VertexSoA.h"
+ 
+ // SoA with x, y, z, id fields in host memory
+-using VertexHostCollection = PortableHostCollection<VertexSoA>;
++namespace reco {
++  using VertexHostCollection = PortableHostCollection<VertexSoA>;
++}  // namespace reco
+ 
+ #endif  // DataFormats_VertexSoA_interface_VertexHostCollection_h
+diff -ruN /home/claude/scratch/campaign/snap/pre_b11_df_namespace/DataFormats/VertexSoA/interface/VertexSoA.h /home/claude/scratch/campaign/snap/post_b11_df_namespace/DataFormats/VertexSoA/interface/VertexSoA.h
+--- /home/claude/scratch/campaign/snap/pre_b11_df_namespace/DataFormats/VertexSoA/interface/VertexSoA.h	2026-11-07 04:21:27.406013072 -0500
++++ /home/claude/scratch/campaign/snap/post_b11_df_namespace/DataFormats/VertexSoA/interface/VertexSoA.h	2026-11-07 04:53:43.890497063 -0500
+@@ -9,9 +9,9 @@
+ namespace reco {
+   // Capacity of the per-vertex track vectors in VertexSoA (maximum tracks a single vertex can hold)
+   constexpr int maxTracksPerVertexForDeterministicAnnealing = 1024;
+-}  // namespace reco
+-using VertexToTrack = Eigen::Vector<float, reco::maxTracksPerVertexForDeterministicAnnealing>;
+-using VertexToTrackInt = Eigen::Vector<int, reco::maxTracksPerVertexForDeterministicAnnealing>;
++
++  using VertexToTrack = Eigen::Vector<float, maxTracksPerVertexForDeterministicAnnealing>;
++  using VertexToTrackInt = Eigen::Vector<int, maxTracksPerVertexForDeterministicAnnealing>;
+ 
+ GENERATE_SOA_LAYOUT(
+     VertexSoALayout,
+@@ -47,5 +47,6 @@
+     SOA_COLUMN(int32_t, nV))
+ 
+ using VertexSoA = VertexSoALayout<>;
++}  // namespace reco
+ 
+ #endif  // DataFormats_VertexSoA_interface_VertexSoA_h
+diff -ruN /home/claude/scratch/campaign/snap/pre_b11_df_namespace/DataFormats/VertexSoA/plugins/TrivialSerialisation.cc /home/claude/scratch/campaign/snap/post_b11_df_namespace/DataFormats/VertexSoA/plugins/TrivialSerialisation.cc
+--- /home/claude/scratch/campaign/snap/pre_b11_df_namespace/DataFormats/VertexSoA/plugins/TrivialSerialisation.cc	2026-11-06 13:22:23.565468598 -0500
++++ /home/claude/scratch/campaign/snap/post_b11_df_namespace/DataFormats/VertexSoA/plugins/TrivialSerialisation.cc	2026-11-07 04:53:43.936497077 -0500
+@@ -4,5 +4,5 @@
+ #include "HeterogeneousCore/TrivialSerialisation/interface/SerialiserFactory.h"
+ 
+ DEFINE_TRIVIAL_SERIALISER_PLUGIN(reco::ZVertexHost);
+-DEFINE_TRIVIAL_SERIALISER_PLUGIN(VertexHostCollection);
+-DEFINE_TRIVIAL_SERIALISER_PLUGIN(TrackForVertexHostCollection);
++DEFINE_TRIVIAL_SERIALISER_PLUGIN(::reco::VertexHostCollection);
++DEFINE_TRIVIAL_SERIALISER_PLUGIN(::reco::TrackForVertexHostCollection);
+diff -ruN /home/claude/scratch/campaign/snap/pre_b11_df_namespace/DataFormats/VertexSoA/src/classes.cc /home/claude/scratch/campaign/snap/post_b11_df_namespace/DataFormats/VertexSoA/src/classes.cc
+--- /home/claude/scratch/campaign/snap/pre_b11_df_namespace/DataFormats/VertexSoA/src/classes.cc	2026-11-06 13:22:23.565468598 -0500
++++ /home/claude/scratch/campaign/snap/post_b11_df_namespace/DataFormats/VertexSoA/src/classes.cc	2026-11-07 04:53:43.936497077 -0500
+@@ -4,5 +4,5 @@
+ #include "DataFormats/VertexSoA/interface/TrackForVertexHostCollection.h"
+ 
+ SET_PORTABLEHOSTCOLLECTION_READ_RULES(reco::ZVertexHost);
+-SET_PORTABLEHOSTCOLLECTION_READ_RULES(VertexHostCollection);
+-SET_PORTABLEHOSTCOLLECTION_READ_RULES(TrackForVertexHostCollection);
++SET_PORTABLEHOSTCOLLECTION_READ_RULES(::reco::VertexHostCollection);
++SET_PORTABLEHOSTCOLLECTION_READ_RULES(::reco::TrackForVertexHostCollection);
+diff -ruN /home/claude/scratch/campaign/snap/pre_b11_df_namespace/DataFormats/VertexSoA/src/classes_def.xml /home/claude/scratch/campaign/snap/post_b11_df_namespace/DataFormats/VertexSoA/src/classes_def.xml
+--- /home/claude/scratch/campaign/snap/pre_b11_df_namespace/DataFormats/VertexSoA/src/classes_def.xml	2026-11-06 13:22:23.565468598 -0500
++++ /home/claude/scratch/campaign/snap/post_b11_df_namespace/DataFormats/VertexSoA/src/classes_def.xml	2026-11-07 04:53:43.937497077 -0500
+@@ -10,11 +10,11 @@
+ 
+   <class name="edm::Wrapper<reco::ZVertexHost>" splitLevel="0"/>
+ 
+-  <class name="VertexHostCollection" rntupleStreamerMode="true"/>
+-  <class name="VertexHostCollection::Layout"/>
+-  <class name="edm::Wrapper<VertexHostCollection>" splitLevel="0"/>
++  <class name="reco::VertexHostCollection" rntupleStreamerMode="true"/>
++  <class name="reco::VertexHostCollection::Layout"/>
++  <class name="edm::Wrapper<reco::VertexHostCollection>" splitLevel="0"/>
+ 
+-  <class name="TrackForVertexHostCollection" rntupleStreamerMode="true"/>
+-  <class name="TrackForVertexHostCollection::Layout"/>
+-  <class name="edm::Wrapper<TrackForVertexHostCollection>" splitLevel="0"/>
++  <class name="reco::TrackForVertexHostCollection" rntupleStreamerMode="true"/>
++  <class name="reco::TrackForVertexHostCollection::Layout"/>
++  <class name="edm::Wrapper<reco::TrackForVertexHostCollection>" splitLevel="0"/>
+ </lcgdict>
+diff -ruN /home/claude/scratch/campaign/snap/pre_b11_df_namespace/RecoVertex/PrimaryVertexProducer/plugins/alpaka/PortableTrackSoAProducer.cc /home/claude/scratch/campaign/snap/post_b11_df_namespace/RecoVertex/PrimaryVertexProducer/plugins/alpaka/PortableTrackSoAProducer.cc
+--- /home/claude/scratch/campaign/snap/pre_b11_df_namespace/RecoVertex/PrimaryVertexProducer/plugins/alpaka/PortableTrackSoAProducer.cc	2026-11-07 04:22:19.528029571 -0500
++++ /home/claude/scratch/campaign/snap/post_b11_df_namespace/RecoVertex/PrimaryVertexProducer/plugins/alpaka/PortableTrackSoAProducer.cc	2026-11-07 04:53:43.906497068 -0500
+@@ -29,7 +29,7 @@
+   /**
+    * This:
+    * - consumes set of reco::Tracks and reco::BeamSpot
+-   * - converts the reco::Tracks to a Alpaka-friendly dataformat TrackForVertexHostCollection
++   * - converts the reco::Tracks to a Alpaka-friendly dataformat ::reco::TrackForVertexHostCollection
+    * - puts the Alpaka dataformat in the device for later consumption
+    */
+   struct TrackFilterParametersForVertexing {
+@@ -82,7 +82,7 @@
+       int32_t tsize_ = tracks->size();
+ 
+       // Host collections
+-      TrackForVertexHostCollection hostTracks(iEvent.queue(), tsize_);
++      ::reco::TrackForVertexHostCollection hostTracks(iEvent.queue(), tsize_);
+       auto& tview = hostTracks.view();
+ 
+       // Fill Host collections with input, first initialize globals
+@@ -160,7 +160,7 @@
+     const edm::EDGetTokenT<reco::TrackCollection> trackToken_;
+     const edm::EDGetTokenT<reco::BeamSpot> beamSpotToken_;
+     device::EDPutToken<TrackForVertexDeviceCollection> devicePutToken_;
+-    double convertTrack(TrackForVertexHostCollection::View::element out,
++    double convertTrack(::reco::TrackForVertexHostCollection::View::element out,
+                         const reco::TransientTrack& in,
+                         const reco::BeamSpot& bs,
+                         int32_t idx,
+@@ -168,7 +168,7 @@
+     const TrackFilterParametersForVertexing fParams;
+   };  //PortableTrackSoAProducer declaration
+ 
+-  double PortableTrackSoAProducer::convertTrack(TrackForVertexHostCollection::View::element out,
++  double PortableTrackSoAProducer::convertTrack(::reco::TrackForVertexHostCollection::View::element out,
+                                                 const reco::TransientTrack& in,
+                                                 const reco::BeamSpot& bs,
+                                                 int32_t idx,
+diff -ruN /home/claude/scratch/campaign/snap/pre_b11_df_namespace/RecoVertex/PrimaryVertexProducer/plugins/RecoVertexFromSoAProducer.cc /home/claude/scratch/campaign/snap/post_b11_df_namespace/RecoVertex/PrimaryVertexProducer/plugins/RecoVertexFromSoAProducer.cc
+--- /home/claude/scratch/campaign/snap/pre_b11_df_namespace/RecoVertex/PrimaryVertexProducer/plugins/RecoVertexFromSoAProducer.cc	2026-11-07 04:22:19.528029571 -0500
++++ /home/claude/scratch/campaign/snap/post_b11_df_namespace/RecoVertex/PrimaryVertexProducer/plugins/RecoVertexFromSoAProducer.cc	2026-11-07 04:53:43.896497065 -0500
+@@ -42,18 +42,18 @@
+ 
+ private:
+   void produce(edm::StreamID, edm::Event&, const edm::EventSetup&) const override;
+-  const edm::EDGetTokenT<VertexHostCollection> portableVertexToken_;
+-  const edm::EDGetTokenT<TrackForVertexHostCollection> soaTracksInBlocksToken_;
++  const edm::EDGetTokenT<::reco::VertexHostCollection> portableVertexToken_;
++  const edm::EDGetTokenT<::reco::TrackForVertexHostCollection> soaTracksInBlocksToken_;
+   const edm::EDGetTokenT<reco::TrackCollection> recoTrackToken_;
+   const edm::EDPutTokenT<reco::VertexCollection> recoVertexToken_;
+ };
+ 
+ void RecoVertexFromSoAProducer::produce(edm::StreamID, edm::Event& iEvent, const edm::EventSetup& iSetup) const {
+   // Book inputs and space for outputs
+-  const VertexHostCollection& hostVertex = iEvent.get(portableVertexToken_);
+-  const VertexHostCollection::ConstView& hostVertexView = hostVertex.const_view();
+-  const TrackForVertexHostCollection& hostTracksInBlocks = iEvent.get(soaTracksInBlocksToken_);
+-  const TrackForVertexHostCollection::ConstView& hostTracksInBlocksView = hostTracksInBlocks.const_view();
++  const ::reco::VertexHostCollection& hostVertex = iEvent.get(portableVertexToken_);
++  const ::reco::VertexHostCollection::ConstView& hostVertexView = hostVertex.const_view();
++  const ::reco::TrackForVertexHostCollection& hostTracksInBlocks = iEvent.get(soaTracksInBlocksToken_);
++  const ::reco::TrackForVertexHostCollection::ConstView& hostTracksInBlocksView = hostTracksInBlocks.const_view();
+   // Note that we need reco::Tracks for building the track Reference vector inside the reco::Vertex
+   auto tracks = iEvent.getHandle(recoTrackToken_);
+ 

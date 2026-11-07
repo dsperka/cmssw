@@ -1,0 +1,391 @@
+diff -ruN /home/claude/scratch/campaign/snap/pre_b01_naming_includes/RecoVertex/PrimaryVertexProducer/plugins/alpaka/DAInBlocksClusterizerAlgo.dev.cc /home/claude/scratch/campaign/snap/post_b01_naming_includes/RecoVertex/PrimaryVertexProducer/plugins/alpaka/DAInBlocksClusterizerAlgo.dev.cc
+--- /home/claude/scratch/campaign/snap/pre_b01_naming_includes/RecoVertex/PrimaryVertexProducer/plugins/alpaka/DAInBlocksClusterizerAlgo.dev.cc	2026-11-06 13:42:29.770969118 -0500
++++ /home/claude/scratch/campaign/snap/post_b01_naming_includes/RecoVertex/PrimaryVertexProducer/plugins/alpaka/DAInBlocksClusterizerAlgo.dev.cc	2026-11-06 14:25:06.567754769 -0500
+@@ -1,4 +1,4 @@
+-#include "RecoVertex/PrimaryVertexProducer/plugins/alpaka/DAInBlocksClusterizerAlgo.h"
++#include "DAInBlocksClusterizerAlgo.h"
+ 
+ namespace ALPAKA_ACCELERATOR_NAMESPACE {
+   using namespace cms::alpakatools;
+@@ -6,13 +6,13 @@
+   // Device functions //
+   //////////////////////
+ 
+-  class ClusterizeKernel {
++  class DAInBlocksClusterizerKernel {
+   public:
+     template <alpaka::concepts::Acc TAcc>
+     ALPAKA_FN_ACC void operator()(const TAcc& acc,
+                                   TrackForVertexDeviceCollection::View tracks,
+                                   VertexDeviceCollection::View vertices,
+-                                  ClusterParameters const& cParams,
++                                  DAInBlocksClusterParameters const& cParams,
+                                   double* beta_,
+                                   double* osumtkwt_,
+                                   int trackBlockSize) const {
+@@ -119,7 +119,7 @@
+       }
+ #endif
+     }
+-  };  // ClusterizeKernel
++  };  // DAInBlocksClusterizerKernel
+ 
+   DAInBlocksClusterizerAlgo::DAInBlocksClusterizerAlgo(Queue& queue, int32_t bSize)
+       : beta_(cms::alpakatools::make_device_buffer<double[]>(queue, bSize)),
+@@ -131,12 +131,12 @@
+   void DAInBlocksClusterizerAlgo::clusterize(Queue& queue,
+                                              TrackForVertexDeviceCollection& deviceTrack,
+                                              VertexDeviceCollection& deviceVertex,
+-                                             ClusterParameters const& cParams,
++                                             DAInBlocksClusterParameters const& cParams,
+                                              int32_t nBlocks,
+                                              int32_t blockSize) {
+     alpaka::exec<Acc1D>(queue,
+                         make_workdiv<Acc1D>(nBlocks, 64),
+-                        ClusterizeKernel{},
++                        DAInBlocksClusterizerKernel{},
+                         deviceTrack.view(),
+                         deviceVertex.view(),
+                         cParams,
+diff -ruN /home/claude/scratch/campaign/snap/pre_b01_naming_includes/RecoVertex/PrimaryVertexProducer/plugins/alpaka/DAInBlocksClusterizerAlgo.h /home/claude/scratch/campaign/snap/post_b01_naming_includes/RecoVertex/PrimaryVertexProducer/plugins/alpaka/DAInBlocksClusterizerAlgo.h
+--- /home/claude/scratch/campaign/snap/pre_b01_naming_includes/RecoVertex/PrimaryVertexProducer/plugins/alpaka/DAInBlocksClusterizerAlgo.h	2026-11-06 13:42:29.770969118 -0500
++++ /home/claude/scratch/campaign/snap/post_b01_naming_includes/RecoVertex/PrimaryVertexProducer/plugins/alpaka/DAInBlocksClusterizerAlgo.h	2026-11-06 14:25:06.564754768 -0500
+@@ -18,7 +18,7 @@
+   // Device functions //
+   //////////////////////
+ 
+-  struct ClusterParameters {
++  struct DAInBlocksClusterParameters {
+     double Tmin;
+     double Tpurge;
+     double Tstop;
+@@ -43,27 +43,27 @@
+     void clusterize(Queue& queue,
+                     TrackForVertexDeviceCollection& inputTracks,
+                     VertexDeviceCollection& deviceVertex,
+-                    ClusterParameters const& cParams,
++                    DAInBlocksClusterParameters const& cParams,
+                     int32_t nBlocks,
+                     int32_t blockSize);  // Clusterization
+ 
+     void resplit_tracks(Queue& queue,
+                         TrackForVertexDeviceCollection& inputTracks,
+                         VertexDeviceCollection& deviceVertex,
+-                        ClusterParameters const& cParams,
++                        DAInBlocksClusterParameters const& cParams,
+                         int32_t nBlocks,
+                         int32_t blockSize);  // Clusterization
+ 
+     void reject_outliers(Queue& queue,
+                          TrackForVertexDeviceCollection& inputTracks,
+                          VertexDeviceCollection& deviceVertex,
+-                         ClusterParameters const& cParams,
++                         DAInBlocksClusterParameters const& cParams,
+                          int32_t nBlocks,
+                          int32_t blockSize);  // Clusterization
+     void arbitrate(Queue& queue,
+                    TrackForVertexDeviceCollection& inputTracks,
+                    VertexDeviceCollection& deviceVertex,
+-                   ClusterParameters const& cParams,
++                   DAInBlocksClusterParameters const& cParams,
+                    int32_t nBlocks,
+                    int32_t blockSize);  // Arbitration
+ 
+@@ -105,7 +105,7 @@
+   ALPAKA_FN_ACC __attribute__((noinline)) static void set_vtx_range(const TAcc& acc,
+                                           TrackForVertexDeviceCollection::View tracks,
+                                           VertexDeviceCollection::View vertices,
+-                                          ClusterParameters const& cParams,
++                                          DAInBlocksClusterParameters const& cParams,
+                                           double& osumtkwt,
+                                           double& beta,
+                                           int trackBlockSize) {
+@@ -171,7 +171,7 @@
+   ALPAKA_FN_ACC __attribute__((noinline)) static void update(const TAcc& acc,
+                                    TrackForVertexDeviceCollection::View tracks,
+                                    VertexDeviceCollection::View vertices,
+-                                   ClusterParameters const& cParams,
++                                   DAInBlocksClusterParameters const& cParams,
+                                    double& osumtkwt,
+                                    double& beta,
+                                    double rho0,
+@@ -259,7 +259,7 @@
+   ALPAKA_FN_ACC __attribute__((noinline)) static void merge(const TAcc& acc,
+                                   TrackForVertexDeviceCollection::View tracks,
+                                   VertexDeviceCollection::View vertices,
+-                                  ClusterParameters const& cParams,
++                                  DAInBlocksClusterParameters const& cParams,
+                                   double& osumtkwt,
+                                   double& beta,
+                                   int trackBlockSize) {
+@@ -400,7 +400,7 @@
+   ALPAKA_FN_ACC __attribute__((noinline)) static void split(const TAcc& acc,
+                                   TrackForVertexDeviceCollection::View tracks,
+                                   VertexDeviceCollection::View vertices,
+-                                  ClusterParameters const& cParams,
++                                  DAInBlocksClusterParameters const& cParams,
+                                   double& osumtkwt,
+                                   double& beta,
+                                   double threshold,
+@@ -644,7 +644,7 @@
+   ALPAKA_FN_ACC __attribute__((noinline)) static void purge(const TAcc& acc,
+                                   TrackForVertexDeviceCollection::View tracks,
+                                   VertexDeviceCollection::View vertices,
+-                                  ClusterParameters const& cParams,
++                                  DAInBlocksClusterParameters const& cParams,
+                                   double& osumtkwt,
+                                   double& beta,
+                                   double rho0,
+@@ -749,7 +749,7 @@
+   ALPAKA_FN_ACC static void initialize(const TAcc& acc,
+                                        TrackForVertexDeviceCollection::View tracks,
+                                        VertexDeviceCollection::View vertices,
+-                                       ClusterParameters const& cParams,
++                                       DAInBlocksClusterParameters const& cParams,
+                                        int trackBlockSize) {
+     // Initialize all vertices as empty, a single vertex in each block will be initialized with all tracks associated to it
+     int blockSize = alpaka::getWorkDiv<alpaka::Block, alpaka::Threads>(acc)[0u];
+@@ -788,7 +788,7 @@
+   ALPAKA_FN_ACC static void getBeta0(const TAcc& acc,
+                                      TrackForVertexDeviceCollection::View tracks,
+                                      VertexDeviceCollection::View vertices,
+-                                     ClusterParameters const& cParams,
++                                     DAInBlocksClusterParameters const& cParams,
+                                      double& beta,
+                                      int trackBlockSize) {
+     // Computes first critical temperature
+@@ -854,7 +854,7 @@
+   ALPAKA_FN_ACC __attribute__((noinline)) static void thermalize(const TAcc& acc,
+                                        TrackForVertexDeviceCollection::View tracks,
+                                        VertexDeviceCollection::View vertices,
+-                                       ClusterParameters const& cParams,
++                                       DAInBlocksClusterParameters const& cParams,
+                                        double& osumtkwt,
+                                        double& beta,
+                                        double delta_highT,
+@@ -936,7 +936,7 @@
+   ALPAKA_FN_ACC static void coolingWhileSplitting(const TAcc& acc,
+                                                   TrackForVertexDeviceCollection::View tracks,
+                                                   VertexDeviceCollection::View vertices,
+-                                                  ClusterParameters const& cParams,
++                                                  DAInBlocksClusterParameters const& cParams,
+                                                   double& osumtkwt,
+                                                   double& beta,
+                                                   int trackBlockSize) {
+@@ -974,7 +974,7 @@
+   ALPAKA_FN_ACC static void reMergeTracks(const TAcc& acc,
+                                           TrackForVertexDeviceCollection::View tracks,
+                                           VertexDeviceCollection::View vertices,
+-                                          ClusterParameters const& cParams,
++                                          DAInBlocksClusterParameters const& cParams,
+                                           double& osumtkwt,
+                                           double& beta,
+                                           int trackBlockSize) {
+@@ -995,7 +995,7 @@
+   ALPAKA_FN_ACC __attribute__((noinline)) static void reSplitTracks(const TAcc& acc,
+                                           TrackForVertexDeviceCollection::View tracks,
+                                           VertexDeviceCollection::View vertices,
+-                                          ClusterParameters const& cParams,
++                                          DAInBlocksClusterParameters const& cParams,
+                                           double& osumtkwt,
+                                           double& beta,
+                                           int trackBlockSize) {
+@@ -1023,7 +1023,7 @@
+   ALPAKA_FN_ACC __attribute__((noinline)) static void rejectOutliers(const TAcc& acc,
+                                            TrackForVertexDeviceCollection::View tracks,
+                                            VertexDeviceCollection::View vertices,
+-                                           ClusterParameters const& cParams,
++                                           DAInBlocksClusterParameters const& cParams,
+                                            double& osumtkwt,
+                                            double& beta,
+                                            int trackBlockSize) {
+diff -ruN /home/claude/scratch/campaign/snap/pre_b01_naming_includes/RecoVertex/PrimaryVertexProducer/plugins/alpaka/DAInBlocksClusterizerArbitrator.dev.cc /home/claude/scratch/campaign/snap/post_b01_naming_includes/RecoVertex/PrimaryVertexProducer/plugins/alpaka/DAInBlocksClusterizerArbitrator.dev.cc
+--- /home/claude/scratch/campaign/snap/pre_b01_naming_includes/RecoVertex/PrimaryVertexProducer/plugins/alpaka/DAInBlocksClusterizerArbitrator.dev.cc	2026-11-06 13:42:29.770969118 -0500
++++ /home/claude/scratch/campaign/snap/post_b01_naming_includes/RecoVertex/PrimaryVertexProducer/plugins/alpaka/DAInBlocksClusterizerArbitrator.dev.cc	2026-11-06 14:25:06.565754768 -0500
+@@ -4,7 +4,7 @@
+ #include "HeterogeneousCore/AlpakaInterface/interface/workdivision.h"
+ #include "HeterogeneousCore/AlpakaInterface/interface/radixSort.h"
+ 
+-#include "RecoVertex/PrimaryVertexProducer/plugins/alpaka/DAInBlocksClusterizerAlgo.h"
++#include "DAInBlocksClusterizerAlgo.h"
+ 
+ //#define DEBUG_RECOVERTEX_PRIMARYVERTEXPRODUCER_ARBITRATOR 1
+ 
+@@ -18,7 +18,7 @@
+   ALPAKA_FN_ACC static void resortVerticesAndAssign(const TAcc& acc,
+                                                     TrackForVertexDeviceCollection::View tracks,
+                                                     VertexDeviceCollection::View vertices,
+-                                                    ClusterParameters const& cParams) {
++                                                    DAInBlocksClusterParameters const& cParams) {
+     // Multiblock vertex arbitration
+     double beta = 1. / cParams.Tstop;
+     const unsigned int maxVerticesInSoA = 1024;
+@@ -188,7 +188,7 @@
+   ALPAKA_FN_ACC static void finalizeVertices(const TAcc& acc,
+                                              TrackForVertexDeviceCollection::View tracks,
+                                              VertexDeviceCollection::View vertices,
+-                                             ClusterParameters const& cParams) {
++                                             DAInBlocksClusterParameters const& cParams) {
+     int blockSize = alpaka::getWorkDiv<alpaka::Block, alpaka::Threads>(acc)[0u];
+     int threadIdx = alpaka::getIdx<alpaka::Block, alpaka::Threads>(acc)[0u];
+     // Per-candidate z uncertainty (inverse-variance combination of its
+@@ -357,7 +357,7 @@
+     ALPAKA_FN_ACC void operator()(const TAcc& acc,
+                                   TrackForVertexDeviceCollection::View tracks,
+                                   VertexDeviceCollection::View vertices,
+-                                  ClusterParameters const& cParams,
++                                  DAInBlocksClusterParameters const& cParams,
+                                   int32_t nBlocks) const {
+       // This has the core of the clusterization algorithm
+ #ifdef DEBUG_RECOVERTEX_PRIMARYVERTEXPRODUCER_ARBITRATOR
+@@ -387,7 +387,7 @@
+   void DAInBlocksClusterizerAlgo::arbitrate(Queue& queue,
+                                             TrackForVertexDeviceCollection& deviceTrack,
+                                             VertexDeviceCollection& deviceVertex,
+-                                            ClusterParameters const& cParams,
++                                            DAInBlocksClusterParameters const& cParams,
+                                             int32_t nBlocks,
+                                             int32_t blockSize) {
+     const int blocks = divide_up_by(blockSize, blockSize);  //Single block, as it has to converge to a single collection
+diff -ruN /home/claude/scratch/campaign/snap/pre_b01_naming_includes/RecoVertex/PrimaryVertexProducer/plugins/alpaka/DAInBlocksClusterizerRejectOutliers.dev.cc /home/claude/scratch/campaign/snap/post_b01_naming_includes/RecoVertex/PrimaryVertexProducer/plugins/alpaka/DAInBlocksClusterizerRejectOutliers.dev.cc
+--- /home/claude/scratch/campaign/snap/pre_b01_naming_includes/RecoVertex/PrimaryVertexProducer/plugins/alpaka/DAInBlocksClusterizerRejectOutliers.dev.cc	2026-11-06 13:42:29.770969118 -0500
++++ /home/claude/scratch/campaign/snap/post_b01_naming_includes/RecoVertex/PrimaryVertexProducer/plugins/alpaka/DAInBlocksClusterizerRejectOutliers.dev.cc	2026-11-06 14:25:06.565754768 -0500
+@@ -1,4 +1,4 @@
+-#include "RecoVertex/PrimaryVertexProducer/plugins/alpaka/DAInBlocksClusterizerAlgo.h"
++#include "DAInBlocksClusterizerAlgo.h"
+ 
+ namespace ALPAKA_ACCELERATOR_NAMESPACE {
+   using namespace cms::alpakatools;
+@@ -12,7 +12,7 @@
+     ALPAKA_FN_ACC void operator()(const TAcc& acc,
+                                   TrackForVertexDeviceCollection::View tracks,
+                                   VertexDeviceCollection::View vertices,
+-                                  ClusterParameters const& cParams,
++                                  DAInBlocksClusterParameters const& cParams,
+                                   double* beta_,
+                                   double* osumtkwt_,
+                                   int trackBlockSize) const {
+@@ -48,7 +48,7 @@
+   void DAInBlocksClusterizerAlgo::reject_outliers(Queue& queue,
+                                                   TrackForVertexDeviceCollection& deviceTrack,
+                                                   VertexDeviceCollection& deviceVertex,
+-                                                  ClusterParameters const& cParams,
++                                                  DAInBlocksClusterParameters const& cParams,
+                                                   int32_t nBlocks,
+                                                   int32_t blockSize) {
+     const int blocks = divide_up_by(nBlocks * blockSize, blockSize);  //nBlocks of size blockSize
+diff -ruN /home/claude/scratch/campaign/snap/pre_b01_naming_includes/RecoVertex/PrimaryVertexProducer/plugins/alpaka/DAInBlocksClusterizerReSplitTracks.dev.cc /home/claude/scratch/campaign/snap/post_b01_naming_includes/RecoVertex/PrimaryVertexProducer/plugins/alpaka/DAInBlocksClusterizerReSplitTracks.dev.cc
+--- /home/claude/scratch/campaign/snap/pre_b01_naming_includes/RecoVertex/PrimaryVertexProducer/plugins/alpaka/DAInBlocksClusterizerReSplitTracks.dev.cc	2026-11-06 13:42:29.770969118 -0500
++++ /home/claude/scratch/campaign/snap/post_b01_naming_includes/RecoVertex/PrimaryVertexProducer/plugins/alpaka/DAInBlocksClusterizerReSplitTracks.dev.cc	2026-11-06 14:25:06.566754769 -0500
+@@ -1,4 +1,4 @@
+-#include "RecoVertex/PrimaryVertexProducer/plugins/alpaka/DAInBlocksClusterizerAlgo.h"
++#include "DAInBlocksClusterizerAlgo.h"
+ 
+ namespace ALPAKA_ACCELERATOR_NAMESPACE {
+   using namespace cms::alpakatools;
+@@ -12,7 +12,7 @@
+     ALPAKA_FN_ACC void operator()(const TAcc& acc,
+                                   TrackForVertexDeviceCollection::View tracks,
+                                   VertexDeviceCollection::View vertices,
+-                                  ClusterParameters const& cParams,
++                                  DAInBlocksClusterParameters const& cParams,
+                                   double* beta_,
+                                   double* osumtkwt_,
+                                   int trackBlockSize) const {
+@@ -46,7 +46,7 @@
+   void DAInBlocksClusterizerAlgo::resplit_tracks(Queue& queue,
+                                                  TrackForVertexDeviceCollection& deviceTrack,
+                                                  VertexDeviceCollection& deviceVertex,
+-                                                 ClusterParameters const& cParams,
++                                                 DAInBlocksClusterParameters const& cParams,
+                                                  int32_t nBlocks,
+                                                  int32_t blockSize) {
+     const int blocks = divide_up_by(nBlocks * blockSize, blockSize);  //nBlocks of size blockSize
+diff -ruN /home/claude/scratch/campaign/snap/pre_b01_naming_includes/RecoVertex/PrimaryVertexProducer/plugins/alpaka/PortableTrackSoAProducer.cc /home/claude/scratch/campaign/snap/post_b01_naming_includes/RecoVertex/PrimaryVertexProducer/plugins/alpaka/PortableTrackSoAProducer.cc
+--- /home/claude/scratch/campaign/snap/pre_b01_naming_includes/RecoVertex/PrimaryVertexProducer/plugins/alpaka/PortableTrackSoAProducer.cc	2026-11-06 13:42:29.770969118 -0500
++++ /home/claude/scratch/campaign/snap/post_b01_naming_includes/RecoVertex/PrimaryVertexProducer/plugins/alpaka/PortableTrackSoAProducer.cc	2026-11-06 14:25:06.568754770 -0500
+@@ -9,7 +9,7 @@
+ #include "FWCore/Utilities/interface/ESInputTag.h"
+ #include "HeterogeneousCore/AlpakaCore/interface/alpaka/global/EDProducer.h"
+ #include "HeterogeneousCore/AlpakaCore/interface/alpaka/EDPutToken.h"
+-#include "HeterogeneousCore/AlpakaCore/interface/alpaka/ESGetToken.h"
++#include "FWCore/Utilities/interface/ESGetToken.h"
+ #include "HeterogeneousCore/AlpakaInterface/interface/config.h"
+ #include "DataFormats/TrackReco/interface/TrackFwd.h"
+ #include "DataFormats/TrackReco/interface/Track.h"
+diff -ruN /home/claude/scratch/campaign/snap/pre_b01_naming_includes/RecoVertex/PrimaryVertexProducer/plugins/alpaka/PrimaryVertexProducerPortable.cc /home/claude/scratch/campaign/snap/post_b01_naming_includes/RecoVertex/PrimaryVertexProducer/plugins/alpaka/PrimaryVertexProducerPortable.cc
+--- /home/claude/scratch/campaign/snap/pre_b01_naming_includes/RecoVertex/PrimaryVertexProducer/plugins/alpaka/PrimaryVertexProducerPortable.cc	2026-11-06 13:42:29.770969118 -0500
++++ /home/claude/scratch/campaign/snap/post_b01_naming_includes/RecoVertex/PrimaryVertexProducer/plugins/alpaka/PrimaryVertexProducerPortable.cc	2026-11-06 14:25:06.567754769 -0500
+@@ -6,11 +6,8 @@
+ #include "FWCore/Utilities/interface/InputTag.h"
+ #include "HeterogeneousCore/AlpakaCore/interface/alpaka/stream/EDProducer.h"
+ #include "HeterogeneousCore/AlpakaCore/interface/alpaka/EDPutToken.h"
+-#include "HeterogeneousCore/AlpakaCore/interface/alpaka/ESGetToken.h"
+ #include "HeterogeneousCore/AlpakaInterface/interface/config.h"
+ 
+-#include "DataFormats/Math/interface/AlgebraicROOTObjects.h"
+-
+ #include "TracksForDAInBlocksAlgo.h"
+ #include "DAInBlocksClusterizerAlgo.h"
+ #include "WeightedVertexFitterAlgo.h"
+@@ -145,7 +142,7 @@
+     int32_t blockSize_;
+     double blockOverlap_;
+     FitterParameters fitterParams_;
+-    ClusterParameters clusterParams_;
++    DAInBlocksClusterParameters clusterParams_;
+   };
+ 
+ }  // namespace ALPAKA_ACCELERATOR_NAMESPACE
+diff -ruN /home/claude/scratch/campaign/snap/pre_b01_naming_includes/RecoVertex/PrimaryVertexProducer/plugins/alpaka/TracksForDAInBlocksAlgo.dev.cc /home/claude/scratch/campaign/snap/post_b01_naming_includes/RecoVertex/PrimaryVertexProducer/plugins/alpaka/TracksForDAInBlocksAlgo.dev.cc
+--- /home/claude/scratch/campaign/snap/pre_b01_naming_includes/RecoVertex/PrimaryVertexProducer/plugins/alpaka/TracksForDAInBlocksAlgo.dev.cc	2026-11-06 13:42:29.770969118 -0500
++++ /home/claude/scratch/campaign/snap/post_b01_naming_includes/RecoVertex/PrimaryVertexProducer/plugins/alpaka/TracksForDAInBlocksAlgo.dev.cc	2026-11-06 14:25:06.567754769 -0500
+@@ -3,14 +3,14 @@
+ #include "HeterogeneousCore/AlpakaInterface/interface/config.h"
+ #include "HeterogeneousCore/AlpakaInterface/interface/workdivision.h"
+ 
+-#include "RecoVertex/PrimaryVertexProducer/plugins/alpaka/TracksForDAInBlocksAlgo.h"
++#include "TracksForDAInBlocksAlgo.h"
+ 
+ //#define DEBUG_RECOVERTEX_PRIMARYVERTEXPRODUCERPORTABLE_BLOCKALGO 1
+ 
+ namespace ALPAKA_ACCELERATOR_NAMESPACE {
+   using namespace cms::alpakatools;
+ 
+-  class createBlocksKernel {
++  class CreateBlocksKernel {
+   public:
+     template <alpaka::concepts::Acc TAcc>
+     ALPAKA_FN_ACC void operator()(const TAcc& acc,
+@@ -91,8 +91,8 @@
+ #ifdef DEBUG_RECOVERTEX_PRIMARYVERTEXPRODUCERPORTABLE_BLOCKALGO
+       printf("[TracksForDAInBlocksAlgo::operator()] End\n");
+ #endif
+-    }  // createBlocksKernel::operator()
+-  };  // class createBlocksKernel
++    }  // CreateBlocksKernel::operator()
++  };  // class CreateBlocksKernel
+ 
+   TracksForDAInBlocksAlgo::TracksForDAInBlocksAlgo() {}  // TracksForDAInBlocksAlgo::TracksForDAInBlocksAlgo
+ 
+@@ -105,7 +105,7 @@
+     const int blocks = 1;               // 1 block with all threads
+     alpaka::exec<Acc1D>(queue,
+                         make_workdiv<Acc1D>(blocks, threadsPerBlock),
+-                        createBlocksKernel{},
++                        CreateBlocksKernel{},
+                         inputTracks.view(),
+                         trackInBlocks.view(),
+                         bOverlap,
+diff -ruN /home/claude/scratch/campaign/snap/pre_b01_naming_includes/RecoVertex/PrimaryVertexProducer/plugins/alpaka/WeightedVertexFitterAlgo.dev.cc /home/claude/scratch/campaign/snap/post_b01_naming_includes/RecoVertex/PrimaryVertexProducer/plugins/alpaka/WeightedVertexFitterAlgo.dev.cc
+--- /home/claude/scratch/campaign/snap/pre_b01_naming_includes/RecoVertex/PrimaryVertexProducer/plugins/alpaka/WeightedVertexFitterAlgo.dev.cc	2026-11-06 13:42:29.770969118 -0500
++++ /home/claude/scratch/campaign/snap/post_b01_naming_includes/RecoVertex/PrimaryVertexProducer/plugins/alpaka/WeightedVertexFitterAlgo.dev.cc	2026-11-06 14:25:06.561754766 -0500
+@@ -3,7 +3,7 @@
+ #include "HeterogeneousCore/AlpakaInterface/interface/config.h"
+ #include "HeterogeneousCore/AlpakaInterface/interface/workdivision.h"
+ 
+-#include "RecoVertex/PrimaryVertexProducer/plugins/alpaka/WeightedVertexFitterAlgo.h"
++#include "WeightedVertexFitterAlgo.h"
+ 
+ //#define DEBUG_RECOVERTEX_PRIMARYVERTEXPRODUCER_FITTERALGO 1
+ 

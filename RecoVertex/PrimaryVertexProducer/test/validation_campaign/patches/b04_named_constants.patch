@@ -1,0 +1,72 @@
+diff -ruN /home/claude/scratch/campaign/snap/pre_b04_named_constants/RecoVertex/PrimaryVertexProducer/plugins/alpaka/DAInBlocksClusterizerAlgo.h /home/claude/scratch/campaign/snap/post_b04_named_constants/RecoVertex/PrimaryVertexProducer/plugins/alpaka/DAInBlocksClusterizerAlgo.h
+--- /home/claude/scratch/campaign/snap/pre_b04_named_constants/RecoVertex/PrimaryVertexProducer/plugins/alpaka/DAInBlocksClusterizerAlgo.h	2026-11-06 15:32:10.368642330 -0500
++++ /home/claude/scratch/campaign/snap/post_b04_named_constants/RecoVertex/PrimaryVertexProducer/plugins/alpaka/DAInBlocksClusterizerAlgo.h	2026-11-06 15:55:33.423613069 -0500
+@@ -13,6 +13,9 @@
+ //#define DEBUG_RECOVERTEX_PRIMARYVERTEXPRODUCER_CLUSTERIZERALGO 1
+ 
+ namespace ALPAKA_ACCELERATOR_NAMESPACE {
++  // order() value of a vertex slot that holds no vertex (set by initialize(), skipped by the later steps)
++  constexpr int emptyVertexOrder = 9999;
++
+   using namespace cms::alpakatools;
+   //////////////////////
+   // Device functions //
+@@ -142,7 +145,7 @@
+                           alpaka::math::min(acc, maxVerticesPerBlock * blockIdx + (int)(vertices[blockIdx].nV()) - 1,
+                                    (int)(tracks[itrack].kmax()) - 1));
+       // For corner cases in which we purged the first vertex, thus not properly updating kmax during purging
+-      while (vertices[kmax].order() == 9999)
++      while (vertices[kmax].order() == emptyVertexOrder)
+         kmax++;
+       if (vertices[vertices[kmax].order()].z() < zmax) {
+         // As long as we have more vertex above kmax but within z range, we can add them to the collection, keep going
+@@ -579,7 +582,8 @@
+                z2);
+       }
+ #endif
+-      int nnew = 999999;
++      const int noFreeSlot = 999999;  // marks 'no empty vertex slot found'
++      int nnew = noFreeSlot;
+       // Find the first empty index to save the vertex
+       for (int icheck = maxVerticesPerBlock * blockIdx; icheck < maxVerticesPerBlock * (blockIdx + 1); icheck++) {
+         if (not(vertices[icheck].isGood())) {
+@@ -587,7 +591,7 @@
+           break;
+         }
+       }
+-      if (nnew == 999999)
++      if (nnew == noFreeSlot)
+         break;  // Need to compute in all threads so all exit properly
+       if (once_per_block(acc)) {
+         double pk1 = p1 * vertices[ivertex].rho() / (p1 + p2);
+@@ -765,7 +769,7 @@
+       vertices[ivertex].z() = 0.;
+       vertices[ivertex].rho() = 0.;
+       vertices[ivertex].isGood() = false;
+-      vertices[ivertex].order() = 9999;
++      vertices[ivertex].order() = emptyVertexOrder;
+       if (ivertex ==
+           maxVerticesPerBlock *
+               blockIdx) {  // Set up the initial single vetex containing everything which should only happen for the first vertex
+diff -ruN /home/claude/scratch/campaign/snap/pre_b04_named_constants/RecoVertex/PrimaryVertexProducer/plugins/alpaka/DAInBlocksClusterizerArbitrator.dev.cc /home/claude/scratch/campaign/snap/post_b04_named_constants/RecoVertex/PrimaryVertexProducer/plugins/alpaka/DAInBlocksClusterizerArbitrator.dev.cc
+--- /home/claude/scratch/campaign/snap/pre_b04_named_constants/RecoVertex/PrimaryVertexProducer/plugins/alpaka/DAInBlocksClusterizerArbitrator.dev.cc	2026-11-06 15:32:10.368642330 -0500
++++ /home/claude/scratch/campaign/snap/post_b04_named_constants/RecoVertex/PrimaryVertexProducer/plugins/alpaka/DAInBlocksClusterizerArbitrator.dev.cc	2026-11-06 15:55:33.424613071 -0500
+@@ -152,7 +152,8 @@
+       int kmin = tracks[itrack].kmin();
+       int kmax = tracks[itrack].kmax();
+       double p_max = -1;
+-      int iMax = 10000;
++      const int noVertexAssigned = 10000;  // track has no vertex above mintrkweight
++        int iMax = noVertexAssigned;
+       double sum_Z = z_sum_init;
+       for (auto k = kmin; k < kmax; k++) {
+         double v_exp = alpaka::math::exp(acc, -(beta)*alpaka::math::pow(acc, tracks[itrack].z() - vertices[vertices[k].order()].z(), 2) *
+@@ -324,7 +325,7 @@
+       int nv =  vertices[0].nV();
+       while (k < nv) {
+         int thisVertex = vertices[k].order();
+-        if (thisVertex == 9999) {
++        if (thisVertex == emptyVertexOrder) {
+           // i.e. if it was purged it was bad
+           for (int l = k; l < vertices[0].nV(); l++) {
+             vertices[l].order() = vertices[l + 1].order();

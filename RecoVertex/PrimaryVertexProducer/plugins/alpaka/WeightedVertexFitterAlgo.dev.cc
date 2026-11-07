@@ -3,7 +3,7 @@
 #include "HeterogeneousCore/AlpakaInterface/interface/config.h"
 #include "HeterogeneousCore/AlpakaInterface/interface/workdivision.h"
 
-#include "RecoVertex/PrimaryVertexProducer/plugins/alpaka/WeightedVertexFitterAlgo.h"
+#include "WeightedVertexFitterAlgo.h"
 
 //#define DEBUG_RECOVERTEX_PRIMARYVERTEXPRODUCER_FITTERALGO 1
 
@@ -17,7 +17,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
                                   const TrackForVertexDeviceCollection::ConstView tracks,
                                   VertexDeviceCollection::View vertices,
                                   BeamSpotPOD const* beamSpot,
-                                  bool* useBeamSpotConstraint) const {
+                                  bool useBeamSpotConstraint) const {
 #ifdef DEBUG_RECOVERTEX_PRIMARYVERTEXPRODUCER_FITTERALGO
       if (once_per_block(acc)) {
         printf("[WeightedVertexFitterAlgo::FitVertices()] In Vertex 0, %i tracks\n", vertices[0].ntracks());
@@ -47,7 +47,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
       float bserry = 0.;
       float bsx = 0.;
       float bsy = 0.;
-      if (*useBeamSpotConstraint) {
+      if (useBeamSpotConstraint) {
         bserrx = beamSpot->beamWidthX < precisionsq ? 1. / (precisionsq) : 1. / (beamSpot->beamWidthX);
         bserry = beamSpot->beamWidthY < precisionsq ? 1. / (precisionsq) : 1. / (beamSpot->beamWidthY);
         bsx = beamSpot->x;
@@ -69,7 +69,9 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
           continue;  // If vertex was killed before, just skip
                      // Initialize positions and errors to 0
 #ifdef DEBUG_RECOVERTEX_PRIMARYVERTEXPRODUCER_FITTERALGO
-        printf("[WeightedVertexFitterAlgo::FitVertices()] Start vertex %i with %i tracks\n", ivertex, vertices[ivertex].ntracks());
+        printf("[WeightedVertexFitterAlgo::FitVertices()] Start vertex %i with %i tracks\n",
+               ivertex,
+               vertices[ivertex].ntracks());
 #endif
         float x = 0.;
         float y = 0.;
@@ -276,7 +278,8 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
               old_z,
               z);
 #endif
-          if ((abs(old_x - x) < precision) && (abs(old_y - y) < precision) && (abs(old_z - z) < precision))
+          if ((alpaka::math::abs(acc, old_x - x) < precision) && (alpaka::math::abs(acc, old_y - y) < precision) &&
+              (alpaka::math::abs(acc, old_z - z) < precision))
             break;  // If good enough, stop the iterations
         }  // end while
         if (fitFailed) {
@@ -330,10 +333,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
   };  // class FitVertices
 
   WeightedVertexFitterAlgo::WeightedVertexFitterAlgo(Queue& queue, FitterParameters fPar)
-      : useBeamSpotConstraint(cms::alpakatools::make_device_buffer<bool>(queue)) {
-    // Set fitter parameters
-    alpaka::memset(queue, useBeamSpotConstraint, fPar.useBeamSpotConstraint);
-  }  // WeightedVertexFitterAlgo::WeightedVertexFitterAlgo
+      : useBeamSpotConstraint_(fPar.useBeamSpotConstraint) {}  // WeightedVertexFitterAlgo::WeightedVertexFitterAlgo
 
   void WeightedVertexFitterAlgo::fit(Queue& queue,
                                      const TrackForVertexDeviceCollection& deviceTrack,
@@ -349,6 +349,6 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
                         deviceTrack.view(),
                         deviceVertex.view(),
                         deviceBeamSpot.data(),
-                        useBeamSpotConstraint.data());
+                        useBeamSpotConstraint_);
   }  // WeightedVertexFitterAlgo::fit
 }  // namespace ALPAKA_ACCELERATOR_NAMESPACE

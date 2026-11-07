@@ -45,6 +45,15 @@ COLORS = {
     "Alpaka-CPU": (ROOT.kGreen + 2, ROOT.kFullDiamond),
 }
 SERIES_ORDER = ["Old", "InBlocks", "Alpaka", "Alpaka-CPU"]
+# Names shown in plot legends / page legend (keys stay the internal series labels).
+DISPLAY = {
+    "Old": "Legacy D.A.",
+    "InBlocks": "D.A. In Blocks (C++)",
+    "Alpaka": "D.A. In Blocks (Alpaka GPU)",
+    "Alpaka-CPU": "D.A. In Blocks (Alpaka CPU)",
+}
+# Optional time per event in ms, filled from --time-* arguments.
+TIMES = {}
 
 
 def categorize(name):
@@ -80,6 +89,10 @@ def parse_args():
     p.add_argument("--inblocks", help="InBlocks mode harvested DQM root file")
     p.add_argument("--alpaka", help="Alpaka mode harvested DQM root file")
     p.add_argument("--alpaka-cpu", help="Alpaka mode (SerialSync/CPU backend) harvested DQM root file")
+    p.add_argument("--time-old", type=float, help="Producer time per event for Old, in ms (shown in the legend)")
+    p.add_argument("--time-inblocks", type=float, help="Producer time per event for InBlocks, in ms")
+    p.add_argument("--time-alpaka", type=float, help="Producer time per event for Alpaka GPU, in ms")
+    p.add_argument("--time-alpaka-cpu", type=float, help="Producer time per event for Alpaka CPU, in ms")
     p.add_argument("--old-collection", default="offlinePrimaryVertices")
     p.add_argument("--inblocks-collection", default="offlinePrimaryVertices")
     p.add_argument("--alpaka-collection", default="vertexAoS")
@@ -158,21 +171,13 @@ def render(series, outdir, label_order):
         lo_bin = max(1, first_populated - pad)
         hi_bin = min(nbins, last_populated + pad)
 
-        overflow_notes = []
-        for label in label_order:
-            h = hists[label]
-            total = h.GetEntries()
-            if total <= 0:
-                continue
-            outside = h.GetBinContent(0) + h.GetBinContent(nbins + 1)
-            frac = outside / total
-            if frac > 0.02:
-                overflow_notes.append(f"{label} {frac*100:.0f}% outside axis range")
-
         canvas = ROOT.TCanvas(f"c_{i}", "", 600, 460)
         canvas.SetLeftMargin(0.16)
         canvas.SetBottomMargin(0.16)
-        canvas.SetTopMargin(0.15 if overflow_notes else 0.06)
+        canvas.SetTopMargin(0.06)
+        logx = "Pt2" in name
+        if logx:
+            canvas.SetLogx(1)
         canvas.SetRightMargin(0.04)
         canvas.SetGrid(1, 1)
 
@@ -186,19 +191,18 @@ def render(series, outdir, label_order):
                     ymax = v + e
                 if v - e < ymin:
                     ymin = v - e
-        headroom = (ymax - ymin) * 0.15 if ymax > ymin else 1.0
+        # Legend occupies the top ~30% of the frame: scale the axis so data stays below it.
+        ymin_axis = ymin - (ymax - ymin) * 0.15 if ymin < 0 else 0.0
+        ymax_axis = ymin_axis + ((ymax - ymin_axis) / 0.66 if ymax > ymin_axis else 1.0)
 
         _title, xlabel, ylabel, _definition = dqm_labels.derive(name)
         if not xlabel:
             xlabel = name
 
-        if overflow_notes:
-            leg = ROOT.TLegend(0.55, 0.70, 0.95, 0.88)
-        else:
-            leg = ROOT.TLegend(0.55, 0.78, 0.95, 0.94)
+        leg = ROOT.TLegend(0.30, 0.78, 0.97, 0.94)
         leg.SetBorderSize(0)
         leg.SetFillStyle(0)
-        leg.SetTextSize(0.042)
+        leg.SetTextSize(0.034)
 
         first = True
         for label in label_order:
@@ -209,7 +213,10 @@ def render(series, outdir, label_order):
             h.SetMarkerStyle(marker)
             h.SetMarkerSize(0.75)
             h.SetLineWidth(2)
-            h.GetXaxis().SetRangeUser(h.GetXaxis().GetBinLowEdge(lo_bin), h.GetXaxis().GetBinUpEdge(hi_bin))
+            xlo = h.GetXaxis().GetBinLowEdge(lo_bin)
+            if logx and xlo <= 0:
+                xlo = h.GetXaxis().GetBinUpEdge(lo_bin)  # log axis needs a positive lower edge: drop the [0, x) bin
+            h.GetXaxis().SetRangeUser(xlo, h.GetXaxis().GetBinUpEdge(hi_bin))
             h.GetXaxis().SetLabelSize(0.042)
             h.GetYaxis().SetLabelSize(0.042)
             h.GetXaxis().SetTitle(xlabel)
@@ -218,23 +225,14 @@ def render(series, outdir, label_order):
             h.GetYaxis().SetTitleSize(0.046)
             h.GetXaxis().SetTitleOffset(1.35)
             h.GetYaxis().SetTitleOffset(1.55)
-            h.SetMaximum(ymax + headroom)
-            h.SetMinimum(ymin - headroom if ymin < 0 else 0)
+            h.SetMaximum(ymax_axis)
+            h.SetMinimum(ymin_axis)
             opt = "E1" if first else "E1 SAME"
             h.Draw(opt)
-            leg.AddEntry(h, label, "lp")
+            leg.AddEntry(h, DISPLAY[label], "lp")
             first = False
 
         leg.Draw()
-
-        if overflow_notes:
-            note = ROOT.TLatex()
-            note.SetNDC(True)
-            note.SetTextFont(42)
-            note.SetTextSize(0.032)
-            note.SetTextColor(ROOT.kGray + 3)
-            for j, line in enumerate(overflow_notes):
-                note.DrawLatex(0.17, 0.965 - j * 0.042, line)
 
         safe_name = safe_re.sub("_", name)
         outpath = os.path.join(outdir, safe_name + ".png")
@@ -305,7 +303,7 @@ def build_html(manifest, outdir, series, title, subtitle):
         if label not in series:
             continue
         color_hex = {"Old": "#000", "InBlocks": "#e3281f", "Alpaka": "#2878c8", "Alpaka-CPU": "#2ca02c"}[label]
-        legend_items.append(f'<span><i class="dot" style="background:{color_hex}"></i> {html.escape(label)}</span>')
+        legend_items.append(f'<span><i class="dot" style="background:{color_hex}"></i> {html.escape(DISPLAY[label])}{(" &middot; %.0f ms/event" % TIMES[label]) if label in TIMES else ""}</span>')
 
     CARDS = "\n".join(cards_html)
     CHIPS = "\n".join(chips_html)
@@ -450,6 +448,9 @@ def build_html(manifest, outdir, series, title, subtitle):
 def main():
     args = parse_args()
     series = build_series(args)
+    for lab, v in (("Old", args.time_old), ("InBlocks", args.time_inblocks), ("Alpaka", args.time_alpaka), ("Alpaka-CPU", args.time_alpaka_cpu)):
+        if v is not None:
+            TIMES[lab] = v
     label_order = [l for l in SERIES_ORDER if l in series]
 
     if args.workdir:

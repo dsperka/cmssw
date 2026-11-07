@@ -1,0 +1,36 @@
+diff -ruN /home/claude/scratch/campaign/snap/pre_b15_launch_geometry/RecoVertex/PrimaryVertexProducer/plugins/alpaka/DAInBlocksClusterizerArbitrator.dev.cc /home/claude/scratch/campaign/snap/post_b15_launch_geometry/RecoVertex/PrimaryVertexProducer/plugins/alpaka/DAInBlocksClusterizerArbitrator.dev.cc
+--- /home/claude/scratch/campaign/snap/pre_b15_launch_geometry/RecoVertex/PrimaryVertexProducer/plugins/alpaka/DAInBlocksClusterizerArbitrator.dev.cc	2026-11-06 18:13:29.573688039 -0500
++++ /home/claude/scratch/campaign/snap/post_b15_launch_geometry/RecoVertex/PrimaryVertexProducer/plugins/alpaka/DAInBlocksClusterizerArbitrator.dev.cc	2026-11-06 18:29:14.205694767 -0500
+@@ -391,7 +391,7 @@
+                                             DAInBlocksClusterParameters const& cParams,
+                                             int32_t nBlocks,
+                                             int32_t blockSize) {
+-    const int blocks = divide_up_by(blockSize, blockSize);  //Single block, as it has to converge to a single collection
++    const int blocks = 1;  // A single block: all the per-block vertex lists are merged into one collection here
+     alpaka::exec<Acc1D>(queue,
+                         make_workdiv<Acc1D>(blocks, blockSize),
+                         ArbitrateKernel{},
+diff -ruN /home/claude/scratch/campaign/snap/pre_b15_launch_geometry/RecoVertex/PrimaryVertexProducer/plugins/alpaka/DAInBlocksClusterizerRejectOutliers.dev.cc /home/claude/scratch/campaign/snap/post_b15_launch_geometry/RecoVertex/PrimaryVertexProducer/plugins/alpaka/DAInBlocksClusterizerRejectOutliers.dev.cc
+--- /home/claude/scratch/campaign/snap/pre_b15_launch_geometry/RecoVertex/PrimaryVertexProducer/plugins/alpaka/DAInBlocksClusterizerRejectOutliers.dev.cc	2026-11-06 18:13:29.573688039 -0500
++++ /home/claude/scratch/campaign/snap/post_b15_launch_geometry/RecoVertex/PrimaryVertexProducer/plugins/alpaka/DAInBlocksClusterizerRejectOutliers.dev.cc	2026-11-06 18:29:14.205694767 -0500
+@@ -111,7 +111,7 @@
+                                                   DAInBlocksClusterParameters const& cParams,
+                                                   int32_t nBlocks,
+                                                   int32_t blockSize) {
+-    const int blocks = divide_up_by(nBlocks * blockSize, blockSize);  //nBlocks of size blockSize
++    const int blocks = nBlocks;  // one block of blockSize threads per block of tracks
+     alpaka::exec<Acc1D>(queue,
+                         make_workdiv<Acc1D>(blocks, blockSize),
+                         RejectOutliersKernel{},
+diff -ruN /home/claude/scratch/campaign/snap/pre_b15_launch_geometry/RecoVertex/PrimaryVertexProducer/plugins/alpaka/DAInBlocksClusterizerReSplitTracks.dev.cc /home/claude/scratch/campaign/snap/post_b15_launch_geometry/RecoVertex/PrimaryVertexProducer/plugins/alpaka/DAInBlocksClusterizerReSplitTracks.dev.cc
+--- /home/claude/scratch/campaign/snap/pre_b15_launch_geometry/RecoVertex/PrimaryVertexProducer/plugins/alpaka/DAInBlocksClusterizerReSplitTracks.dev.cc	2026-11-06 18:13:29.573688039 -0500
++++ /home/claude/scratch/campaign/snap/post_b15_launch_geometry/RecoVertex/PrimaryVertexProducer/plugins/alpaka/DAInBlocksClusterizerReSplitTracks.dev.cc	2026-11-06 18:29:14.204694767 -0500
+@@ -81,7 +81,7 @@
+                                                  DAInBlocksClusterParameters const& cParams,
+                                                  int32_t nBlocks,
+                                                  int32_t blockSize) {
+-    const int blocks = divide_up_by(nBlocks * blockSize, blockSize);  //nBlocks of size blockSize
++    const int blocks = nBlocks;  // one block of blockSize threads per block of tracks
+     alpaka::exec<Acc1D>(queue,
+                         make_workdiv<Acc1D>(blocks, blockSize),
+                         ReSplitTracksKernel{},
