@@ -9,5 +9,5 @@ python3 "$(dirname "$0")/render_dqm_gallery.py" \
   --base-dir "DQMData/Run 1/MTD/Run summary/Vertices/{coll}" \
   --display "Old=Legacy D.A. (3D)" --display "InBlocks=D.A. In Blocks (C++)" --display "Alpaka=D.A. In Blocks (Alpaka CPU)" \
   --display "Alpaka-CPU=Legacy D.A. (4D)" --display "Extra=GNN vertex slots" \
-  --time-old 775 --time-inblocks 229 --time-alpaka 312 --time-alpaka-cpu 833 --time-extra 1336 \
+  --time-old 779 --time-inblocks 230 --time-alpaka 314 --time-alpaka-cpu 838 --time-extra 1343 \
   --out "$G/pv_dqm_gallery.html" --workdir "$G/work" --title "MTD vertex validation: DA in blocks and GNN on 20_1"

@@ -1,0 +1,19 @@
+['3D', '4D', 'Alpaka', 'GNN', 'InBlocks']
+                   3D         4D        GNN   InBlocks     Alpaka
+sim            189.44     189.44     189.44     189.44     189.44
+reco all       138.53     137.44     154.37     143.64     141.62
+pass ndof      129.31     120.14     112.64     136.03     126.02
+real           119.22     111.70      98.45     120.53     116.11
+fake            10.09       8.44      14.20      15.50       9.91
+split            8.38       6.24      12.68      12.19       6.57
+other fake       1.71       2.21       1.52       3.31       3.35
+real/(r+f)      0.922      0.930      0.874      0.886      0.921
+split frac      0.065      0.052      0.113      0.090      0.052
+real/sim        0.629      0.590      0.520      0.636      0.613
+
+producer time per event (ms), 200 events, sum of the chain's modules incl. the vertex sorter:
+3D 778.5 []
+4D 837.9 []
+InBlocks 229.9 []
+Alpaka 313.5 []
+GNN 1343.2 []
