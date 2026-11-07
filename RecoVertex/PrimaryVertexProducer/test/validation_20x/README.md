@@ -53,7 +53,8 @@ python3 summarize_dqm.py DQM_V0001_R000000001__Global__CMSSW_X_Y_Z__RECO.root
    with the GNN modifier on, plus the C++ in-blocks and Alpaka chains. Writes the FEVT file (about 17 GB for 100 events).
 2. `mtdValidation_6way_cfg.py`: the PR's `mtdValidation_3way_cfg.py` extended by two modules for the new collections.
 3. `mtdHarvesting_6way_cfg.py`.
-Third argument: `cpu` (default) or `gpu-nvidia`. The GPU was not available in the test harness of this base on the machine used, so it was not run.
+The first argument can be a local path, a `/store/...` LFN or a `root://` URL. Third argument: `cpu` (default) or `gpu-nvidia`.
+The GPU was not run for the results below: this base uses CUDA 13.x, which does not support the pre-Turing GPUs (TITAN V, Quadro P400) of the machine used. It needs a Turing-or-newer GPU, see the lxplus recipe below.
 
 Collections produced and validated:
 | folder in the output | collection | how |
@@ -95,5 +96,33 @@ What it shows:
 - `render_dqm_gallery.py`, `dqm_labels.py`: the gallery generator. Options added for this work: `--base-dir`, `--display KEY=NAME`, a fifth series (`--extra`).
 - `summarize_dqm.py`: the per-event table.
 
+## Running on lxplus, with a GPU (gives the seven-way comparison)
+```
+ssh lxplus-gpu.cern.ch                                   # or an HTCondor job with request_gpus = 1
+export SCRAM_ARCH=el9_amd64_gcc14
+source /cvmfs/cms-ib.cern.ch/sw/x86_64/week1/cmsset_default.sh
+scram list CMSSW_20_1_X_2026-11-02                       # the area is under one of the nweek-* directories; `scram p` finds it
+scram p CMSSW CMSSW_20_1_X_2026-11-02-1100
+cd CMSSW_20_1_X_2026-11-02-1100/src && cmsenv
+git cms-init
+git cms-merge-topic dsperka:from-CMSSW_20_1_X_2026-11-02-1100-da-in-blocks-and-gnn
+mkdir -p RecoVertex/PrimaryVertexProducer/data && cp /path/to/vertexSlotGNN.pt RecoVertex/PrimaryVertexProducer/data/
+scram b -j 16
+cudaIsEnabled; echo "cudaIsEnabled rc=$?"             # must be 0 on the GPU node
+```
+Then, in two separate work directories with about 20 GB free each (for example on /eos):
+```
+V=$CMSSW_BASE/src/RecoVertex/PrimaryVertexProducer/test/validation_20x
+IN=/store/relval/CMSSW_20_1_0_pre3/RelValTTbar_14TeV/GEN-SIM-RECO/PU_150X_mcRun4_realistic_v1_STD_D128_RegeneratedGS_PU_20260903_192421_RV19-v1/2830000/01313427-f364-4b67-9190-ea6bafe583b6.root
+mkdir cpu gpu
+(cd cpu && $V/run_validation.sh $IN 100 cpu)
+(cd gpu && $V/run_validation.sh $IN 100 gpu-nvidia)
+$V/make_gallery_7way.sh cpu/DQM_V0001_R000000001__Global__CMSSW_X_Y_Z__RECO.root gpu/DQM_V0001_R000000001__Global__CMSSW_X_Y_Z__RECO.root gallery_7way
+python3 $V/summarize_dqm.py gpu/DQM_V0001_R000000001__Global__CMSSW_X_Y_Z__RECO.root
+```
+The GPU job runs everything again (the CPU-only collections too) with the Alpaka chain and the GNN on the device; the seven-way gallery uses its
+Alpaka and GNN folders next to the full CPU job. Seven series: 3D DA, 4D DA, C++ in blocks, Alpaka CPU, Alpaka GPU, GNN CPU, GNN GPU.
+No OpenSSL workaround should be needed there.
+
 ## Not done
-Alpaka GPU; the C++ versus Alpaka difference; a D121 PU200 sample for the GNN; `PrimaryVertexAnalyzer4PUSlimmed` rebinning (vertex-count histograms were empty with the default range for PU150; not needed for the MTD validation).
+Alpaka GPU (needs the lxplus recipe above); the C++ versus Alpaka difference; a D121 PU200 sample for the GNN; `PrimaryVertexAnalyzer4PUSlimmed` rebinning (vertex-count histograms were empty with the default range for PU150; not needed for the MTD validation).

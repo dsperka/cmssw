@@ -18,7 +18,7 @@ process.GlobalTag = GlobalTag(process.GlobalTag, 'auto:phase2_realistic_T35', ''
 
 process.maxEvents = cms.untracked.PSet(input = cms.untracked.int32(NEVENTS))
 process.source = cms.Source("PoolSource",
-    fileNames = cms.untracked.vstring('file:INPUTFILE'),
+    fileNames = cms.untracked.vstring('INPUTFILE'),
     inputCommands = cms.untracked.vstring(
         'keep *',
         'drop *_SimClusterToCaloParticleAssociation_*_*',

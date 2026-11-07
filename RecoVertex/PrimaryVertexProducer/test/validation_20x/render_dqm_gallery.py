@@ -44,8 +44,10 @@ COLORS = {
     "Alpaka": (ROOT.kAzure + 2, ROOT.kFullTriangleUp),
     "Alpaka-CPU": (ROOT.kGreen + 2, ROOT.kFullDiamond),
     "Extra": (ROOT.kMagenta + 1, ROOT.kFullCross),
+    "Extra2": (ROOT.kOrange + 7, ROOT.kFullTriangleDown),
+    "Extra3": (ROOT.kCyan + 2, ROOT.kOpenSquare),
 }
-SERIES_ORDER = ["Old", "InBlocks", "Alpaka", "Alpaka-CPU", "Extra"]
+SERIES_ORDER = ["Old", "InBlocks", "Alpaka", "Alpaka-CPU", "Extra", "Extra2", "Extra3"]
 # Names shown in plot legends / page legend (keys stay the internal series labels).
 DISPLAY = {
     "Old": "Legacy D.A.",
@@ -53,6 +55,8 @@ DISPLAY = {
     "Alpaka": "D.A. In Blocks (Alpaka GPU)",
     "Alpaka-CPU": "D.A. In Blocks (Alpaka CPU)",
     "Extra": "Extra series",
+    "Extra2": "Extra series 2",
+    "Extra3": "Extra series 3",
 }
 # DQM directory of one series inside the harvested file; {coll} is the per-series collection/sub-folder name.
 BASE_DIR = "DQMData/Run 1/Vertexing/Run summary/PrimaryVertexV/{coll}"
@@ -112,6 +116,12 @@ def parse_args():
     p.add_argument("--extra", help="Fifth series, harvested DQM root file (label it with --display Extra=NAME)")
     p.add_argument("--extra-collection", default="offlinePrimaryVertices")
     p.add_argument("--time-extra", type=float, help="Producer time per event for the fifth series, in ms")
+    p.add_argument("--extra2", help="Sixth series, harvested DQM root file")
+    p.add_argument("--extra2-collection", default="offlinePrimaryVertices")
+    p.add_argument("--time-extra2", type=float)
+    p.add_argument("--extra3", help="Seventh series, harvested DQM root file")
+    p.add_argument("--extra3-collection", default="offlinePrimaryVertices")
+    p.add_argument("--time-extra3", type=float)
     p.add_argument("--time-old", type=float, help="Producer time per event for Old, in ms (shown in the legend)")
     p.add_argument("--time-inblocks", type=float, help="Producer time per event for InBlocks, in ms")
     p.add_argument("--time-alpaka", type=float, help="Producer time per event for Alpaka GPU, in ms")
@@ -143,6 +153,10 @@ def build_series(args):
         series["Alpaka-CPU"] = (args.alpaka_cpu, args.alpaka_cpu_collection)
     if args.extra:
         series["Extra"] = (args.extra, args.extra_collection)
+    if args.extra2:
+        series["Extra2"] = (args.extra2, args.extra2_collection)
+    if args.extra3:
+        series["Extra3"] = (args.extra3, args.extra3_collection)
     if len(series) < 2:
         sys.exit("Need at least two of --old/--inblocks/--alpaka to compare.")
     return series
@@ -331,7 +345,7 @@ def build_html(manifest, outdir, series, title, subtitle):
     for label in SERIES_ORDER:
         if label not in series:
             continue
-        color_hex = {"Old": "#000", "InBlocks": "#e3281f", "Alpaka": "#2878c8", "Alpaka-CPU": "#2ca02c", "Extra": "#b02fb0"}[label]
+        color_hex = {"Old": "#000", "InBlocks": "#e3281f", "Alpaka": "#2878c8", "Alpaka-CPU": "#2ca02c", "Extra": "#b02fb0", "Extra2": "#e8590c", "Extra3": "#0b9fb0"}[label]
         legend_items.append(f'<span><i class="dot" style="background:{color_hex}"></i> {html.escape(DISPLAY[label])}{(" &middot; %.0f ms/event" % TIMES[label]) if label in TIMES else ""}</span>')
 
     CARDS = "\n".join(cards_html)
@@ -485,7 +499,7 @@ def main():
         if k not in DISPLAY or not v:
             sys.exit(f"--display expects KEY=NAME with KEY in {list(DISPLAY)}: {kv!r}")
         DISPLAY[k] = v
-    for lab, v in (("Old", args.time_old), ("InBlocks", args.time_inblocks), ("Alpaka", args.time_alpaka), ("Alpaka-CPU", args.time_alpaka_cpu), ("Extra", args.time_extra)):
+    for lab, v in (("Old", args.time_old), ("InBlocks", args.time_inblocks), ("Alpaka", args.time_alpaka), ("Alpaka-CPU", args.time_alpaka_cpu), ("Extra", args.time_extra), ("Extra2", args.time_extra2), ("Extra3", args.time_extra3)):
         if v is not None:
             TIMES[lab] = v
     label_order = [l for l in SERIES_ORDER if l in series]
