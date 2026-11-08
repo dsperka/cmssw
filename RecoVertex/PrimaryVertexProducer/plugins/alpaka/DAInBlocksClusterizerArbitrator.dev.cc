@@ -238,10 +238,8 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
         sum_invvar += tracks[vertices[ivertex].track_id()[it]].oneoverdz2();
       }
       sigma_z[ivertex] = (sum_invvar > 0.) ? alpaka::math::sqrt(acc, 1. / sum_invvar) : 0.;
-      if (vertices[ivertex].ntracks() < 2) {
-        vertices[ivertex].isGood() = false;
-        continue;
-      }
+      // Candidates with fewer than 2 tracks are not dropped here: as in the C++ implementation they take part in the
+      // merge chain below and only the merged cluster has to hold more than one track
       vertices[ivertex].x() = 0;
       vertices[ivertex].y() = 0;
     }
@@ -253,105 +251,55 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
     }
 #endif
     if (once_per_block(acc)) {
-      // So we now check whether each vertex is further enough from the previous one
-      for (int k = 0; k < vertices[0].nV(); k++) {
-        int prevVertex = ((int)k) - 1;
-        int thisVertex = (int)vertices[k].order();
-        if (not(vertices[thisVertex].isGood())) {
-          continue;
-        }
-        while (prevVertex >= 0) {
-          // Find the previous vertex that was good
-          if (vertices[vertices[prevVertex].order()].isGood())
-            break;  //Can't be part of the while condition as otherwise it could try to look up with index -1 in the vervex view
-          prevVertex--;
-        }
-        if ((prevVertex < 0)) {
-          // If it is first, always good
-          vertices[thisVertex].isGood() = true;
-#ifdef DEBUG_RECOVERTEX_PRIMARYVERTEXPRODUCER_ARBITRATOR
-          if (once_per_block(acc)) {
-            printf("[DAInBlocksClusterizerAlgoArbitrator::finalizeVertices()] Vertex %i (%i) is good (first)\n",
-                   thisVertex,
-                   k);
-          }
-#endif
-          continue;
-        }
-        int prevVertexO = vertices[prevVertex].order();
-        // Widen the fixed 2*vertexSize merge floor by the combined sigma of
-        // the two candidates (sigma_z filled in parallel above). A real
-        // vertex whose tracks got split across a block overlap seam can
-        // legitimately disagree in z by more than that fixed floor without
-        // being a different vertex -- same fix as the CPU
-        // DAClusterizerInZ_vect::vertices_in_blocks() merge step.
-        double combinedSigma = alpaka::math::sqrt(
-            acc, sigma_z[thisVertex] * sigma_z[thisVertex] + sigma_z[prevVertexO] * sigma_z[prevVertexO]);
-        double mergeThreshold = alpaka::math::max(acc, 2 * cParams.vertexSize, 3.0 * combinedSigma);
-        if (alpaka::math::abs(acc, vertices[thisVertex].z() - vertices[prevVertexO].z()) > mergeThreshold) {
-          // If it is further away enough, it is also good
-          vertices[thisVertex].isGood() = true;
-#ifdef DEBUG_RECOVERTEX_PRIMARYVERTEXPRODUCER_ARBITRATOR
-          if (once_per_block(acc)) {
-            printf(
-                "[DAInBlocksClusterizerAlgoArbitrator::finalizeVertices()] Vertex %i (%i) is good (far away from "
-                "previous), %1.5f, %1.5f, %1.5f\n",
-                thisVertex,
-                k,
-                vertices[thisVertex].z(),
-                vertices[vertices[prevVertex].order()].z(),
-                2 * cParams.vertexSize);
-          }
-#endif
+      // Merge left to right exactly as DAClusterizerInZ_vect::vertices_in_blocks does: consecutive candidates k and
+      // k+1 (in z order, empty ones included) belong to the same cluster if they are closer than the larger of
+      // 2*vertexSize and 3 combined sigma; the tracks of a cluster are collected in its first vertex and the cluster
+      // is kept if it holds more than one track
+      const int nCand = vertices[0].nV();
+      int head = -1;
+      for (int k = 0; k < nCand; k++) {
+        const int thisVertex = (int)vertices[k].order();
+        if (head < 0) {
+          head = thisVertex;
         } else {
-#ifdef DEBUG_RECOVERTEX_PRIMARYVERTEXPRODUCER_ARBITRATOR
-          if (once_per_block(acc)) {
-            printf(
-                "[DAInBlocksClusterizerAlgoArbitrator::finalizeVertices()] Vertex %i (%i) is bad (close to previous), "
-                "%1.5f, %1.5f\n",
-                thisVertex,
-                k,
-                vertices[thisVertex].z(),
-                vertices[vertices[prevVertex].order()].z());
+          for (int itrack = 0; itrack < vertices[thisVertex].ntracks(); itrack++) {
+            vertices[head].track_id()[vertices[head].ntracks()] = vertices[thisVertex].track_id()[itrack];
+            vertices[head].track_weight()[vertices[head].ntracks()] = 1.;
+            vertices[head].ntracks()++;
           }
-#endif
           vertices[thisVertex].isGood() = false;
-          for (int itrack = 0; itrack < vertices[thisVertex].ntracks(); itrack += 1) {
-            bool isNew = true;
-            for (int ivtrack = 0; ivtrack < vertices[prevVertexO].ntracks(); ivtrack++) {
-              if (vertices[prevVertexO].track_id()[ivtrack] == vertices[thisVertex].track_id()[itrack])
-                isNew = false;
-            }
-            if (!isNew)
-              continue;
-            vertices[prevVertexO].track_id()[vertices[prevVertexO].ntracks()] = vertices[thisVertex].track_id()[itrack];
-            vertices[prevVertexO].track_weight()[vertices[prevVertexO].ntracks()] = 1.;
-            vertices[prevVertexO].ntracks()++;
-          }
+        }
+        bool closeCluster = (k + 1 == nCand);
+        if (!closeCluster) {
+          const int nextVertex = (int)vertices[k + 1].order();
+          double combinedSigma = alpaka::math::sqrt(
+              acc, sigma_z[thisVertex] * sigma_z[thisVertex] + sigma_z[nextVertex] * sigma_z[nextVertex]);
+          double mergeThreshold = alpaka::math::max(acc, 2 * cParams.vertexSize, 3.0 * combinedSigma);
+          closeCluster = alpaka::math::abs(acc, vertices[nextVertex].z() - vertices[thisVertex].z()) > mergeThreshold;
+        }
+        if (closeCluster) {
+          vertices[head].isGood() = (vertices[head].ntracks() > 1);
+          head = -1;
         }
       }
-      // We have to deal with the order being broken by the invalidation of vertexes and set back again the vertex multiplicity, unfortunately can't be parallelized without threads competing
-      int k = 0;
-      int nv = vertices[0].nV();
-      while (k < nv) {
-        int thisVertex = vertices[k].order();
+      // The merge (and the vertices without tracks) invalidated vertices, so the order list has to be compacted and the
+      // vertex multiplicity set back. Done in one pass with a local counter, nV is written once at the end: shifting the
+      // list in place while decrementing vertices[0].nV() inside the loop did not update nV (the loop bound kept its
+      // initial value), which left nV about the number of removed vertices too large and the stale tail of the list
+      // (copies of valid vertices) was then fitted again, giving duplicate vertices
+      const int nOld = vertices[0].nV();
+      int nKept = 0;
+      for (int k = 0; k < nOld; k++) {
+        const int thisVertex = vertices[k].order();
         if (thisVertex == emptyVertexOrder) {
-          // i.e. if it was purged it was bad
-          for (int l = k; l < vertices[0].nV(); l++) {
-            vertices[l].order() = vertices[l + 1].order();
-          }
-          vertices[0].nV()--;
-          nv--;
-        } else if (vertices[thisVertex].isGood()) {  // If is good just continue
-          k++;
-        } else {
-          for (int l = k; l < vertices[0].nV(); l++) {  //If it is bad, move one position all indexes
-            vertices[l].order() = vertices[l + 1].order();
-          }
-          vertices[0].nV()--;  // And reduce vertex number by 1
-          nv--;
+          continue;  // purged, so it was bad
+        }
+        if (vertices[thisVertex].isGood()) {
+          vertices[nKept].order() = thisVertex;
+          nKept++;
         }
       }
+      vertices[0].nV() = nKept;
     }
 #ifdef DEBUG_RECOVERTEX_PRIMARYVERTEXPRODUCER_ARBITRATOR
     if (once_per_block(acc)) {
