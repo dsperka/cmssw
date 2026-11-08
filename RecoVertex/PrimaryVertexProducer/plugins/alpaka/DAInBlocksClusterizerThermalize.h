@@ -31,7 +31,9 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
       int blockIdx = alpaka::getIdx<alpaka::Grid, alpaka::Blocks>(acc)[0u];
       int maxVerticesPerBlock = (int)1024 / alpaka::getWorkDiv<alpaka::Grid, alpaka::Blocks>(acc)[0u];
       int niter = 0;
-      float zrange_min = 0.01;  // Hard coded as it is in CPU
+      const float zrange_min = 0.1;  // as zrange_min_ in the C++ DAClusterizerInZ_vect
+      // positions of the vertices at the last track-vertex range assignment (z0 in the C++ implementation)
+      auto& z0 = alpaka::declareSharedVar<float[1024], __COUNTER__>(acc);
       float delta_max = cParams.delta_lowT;
       if (cParams.convergence_mode == 0) {
         delta_max = delta_highT;
@@ -40,6 +42,12 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
       }
       int maxIterations = 1000;
       set_vtx_range(acc, tracks, vertices, cParams, osumtkwt, beta, trackBlockSize);
+      alpaka::syncBlockThreads(acc);
+      if (once_per_block(acc)) {
+        for (int k = 0; k < vertices[blockIdx].nV(); k++)
+          z0[k] = vertices[vertices[maxVerticesPerBlock * blockIdx + k].order()].z();
+      }
+      alpaka::syncBlockThreads(acc);
       // Accumulator of variations
       float delta_sum_range = 0;
       while (niter++ < maxIterations) {
@@ -61,8 +69,18 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
             dmax = alpaka::math::abs(acc, vertices[ivertex].aux1());
         }
         delta_sum_range += dmax;
-        // If a vertex moved too much we reassign
-        if (delta_sum_range > zrange_min && dmax > zrange_min) {
+        // If a vertex moved too much since the last assignment we reassign (same criterion as the C++ implementation)
+        bool reassign = false;
+        if (delta_sum_range > zrange_min) {
+          for (int k = 0; k < vertices[blockIdx].nV(); k++) {
+            if (alpaka::math::abs(
+                    acc, vertices[vertices[maxVerticesPerBlock * blockIdx + k].order()].z() - z0[k]) > zrange_min) {
+              reassign = true;
+              break;
+            }
+          }
+        }
+        if (reassign) {
 #ifdef DEBUG_RECOVERTEX_PRIMARYVERTEXPRODUCER_CLUSTERIZERALGO
           if (once_per_block(acc)) {
             printf(
@@ -77,9 +95,14 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
 #endif
           set_vtx_range(acc, tracks, vertices, cParams, osumtkwt, beta, trackBlockSize);
           delta_sum_range = 0.;
+          alpaka::syncBlockThreads(acc);
+          if (once_per_block(acc)) {
+            for (int k = 0; k < vertices[blockIdx].nV(); k++)
+              z0[k] = vertices[vertices[maxVerticesPerBlock * blockIdx + k].order()].z();
+          }
+          alpaka::syncBlockThreads(acc);
         }
         if (dmax < delta_max) {
-          update(acc, tracks, vertices, cParams, osumtkwt, beta, 0.0, true, trackBlockSize);
 
 #ifdef DEBUG_RECOVERTEX_PRIMARYVERTEXPRODUCER_CLUSTERIZERALGO
           if (once_per_block(acc)) {

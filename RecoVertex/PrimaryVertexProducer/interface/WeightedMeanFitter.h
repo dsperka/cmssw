@@ -84,6 +84,7 @@ namespace WeightedMeanFitter {
     err_x = 1. / s_wx;
     err_z = 1. / s_wz;
 
+    std::vector<float> trackWeights(points.size(), 1.f);  // weight of each track in the last iteration: 1 kept, 0 rejected
     while ((niter++) < 2) {
       old_x = x;
       old_y = y;
@@ -111,6 +112,7 @@ namespace WeightedMeanFitter {
           xpull = 1.;
 
         ndof_x += xpull;
+        trackWeights[i] = xpull;
 
         wx = xpull / wx;
         wz = xpull / wz;
@@ -164,6 +166,10 @@ namespace WeightedMeanFitter {
     float ndof =
         ndof_x > 1 ? (2 * ndof_x - 3) : 0.00001;  // ndof_x is actually the number of tracks with non-zero weight
     TransientVertex v(GlobalPoint(x, y, z), err, iclus, chi2, ndof);
+    TransientVertex::TransientTrackToFloatMap weightMap;
+    for (unsigned int i = 0; i < iclus.size(); i++)
+      weightMap[iclus[i]] = trackWeights[i];
+    v.weightMap(weightMap);
     return v;
   }
 
@@ -227,6 +233,7 @@ namespace WeightedMeanFitter {
     err_y = 1. / s_wy;
     err_z = 1. / s_wz;
 
+    std::vector<float> trackWeights(points.size(), 1.f);  // weight of each track in the last iteration: 1 kept, 0 rejected
     while ((niter++) < 2) {
       old_x = x;
       old_y = y;
@@ -259,6 +266,7 @@ namespace WeightedMeanFitter {
           xpull = 1.;
 
         ndof_x += xpull;
+        trackWeights[i] = xpull;
 
         wx = xpull / wx;
         wy = xpull / wy;
@@ -322,6 +330,10 @@ namespace WeightedMeanFitter {
       chi2 += dist;
     }
     TransientVertex v(GlobalPoint(x, y, z), err, iclus, chi2, (int)ndof_x);
+    TransientVertex::TransientTrackToFloatMap weightMap;
+    for (unsigned int i = 0; i < iclus.size(); i++)
+      weightMap[iclus[i]] = trackWeights[i];
+    v.weightMap(weightMap);
     return v;
   }
 
