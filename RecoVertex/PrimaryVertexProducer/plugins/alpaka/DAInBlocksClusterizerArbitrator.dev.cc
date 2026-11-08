@@ -18,7 +18,8 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
   ALPAKA_FN_ACC static void resortVerticesAndAssign(const TAcc& acc,
                                                     TrackForVertexDeviceCollection::View tracks,
                                                     VertexDeviceCollection::View vertices,
-                                                    DAInBlocksClusterParameters const& cParams) {
+                                                    DAInBlocksClusterParameters const& cParams,
+                                                    int32_t nBlocks) {
     // Multiblock vertex arbitration
     double beta = 1. / cParams.Tstop;
     const unsigned int maxVerticesInSoA = 1024;
@@ -49,14 +50,20 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
     if (once_per_block(acc)) {
       // We only keep the ones that are good out of all of the ones in the collection
       unsigned int nTrueVertex = 0;
-      for (unsigned int ivO = 0; ivO < maxVerticesInSoA; ivO += 1) {
-        int iv = vertices[ivO].order();
-        if ((iv < 0) || (iv >= (int)maxVerticesInSoA))
-          continue;
-        if (vertices[iv].isGood()) {
-          z[nTrueVertex] = vertices[iv].z();
-          rho[nTrueVertex] = vertices[iv].rho();
-          nTrueVertex++;
+      // Each block b owns the slots [b*maxVerticesPerBlock, (b+1)*maxVerticesPerBlock) and its order() list is only
+      // valid for the first nV(b) entries: the entries behind them are stale and point at vertices that were merged
+      // or purged (or already listed), so they must not be read
+      const int maxVerticesPerBlock = (int)maxVerticesInSoA / nBlocks;
+      for (int b = 0; b < nBlocks; b++) {
+        for (int i = 0; i < vertices[b].nV(); i++) {
+          int iv = vertices[b * maxVerticesPerBlock + i].order();
+          if ((iv < 0) || (iv >= (int)maxVerticesInSoA))
+            continue;
+          if (vertices[iv].isGood()) {
+            z[nTrueVertex] = vertices[iv].z();
+            rho[nTrueVertex] = vertices[iv].rho();
+            nTrueVertex++;
+          }
         }
       }
       vertices[0].nV() = nTrueVertex;
@@ -369,7 +376,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
         printf("[DAInBlocksClusterizerAlgoArbitrator::operator()] Start arbitration\n");
       }
 #endif
-      resortVerticesAndAssign(acc, tracks, vertices, cParams);
+      resortVerticesAndAssign(acc, tracks, vertices, cParams, nBlocks);
 #ifdef DEBUG_RECOVERTEX_PRIMARYVERTEXPRODUCER_ARBITRATOR
       if (once_per_block(acc)) {
         printf("[DAInBlocksClusterizerAlgoArbitrator::operator()] Vertex reassignment finished\n");

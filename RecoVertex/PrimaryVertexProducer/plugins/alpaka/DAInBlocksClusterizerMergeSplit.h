@@ -337,6 +337,17 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
                  z2);
         }
 #endif
+        // Split only if the two sub-clusters are significantly separated and their weights are finite (as in the C++
+        // implementation): otherwise leave this vertex alone and go on with the next critical one
+        bool& doSplit = alpaka::declareSharedVar<bool, __COUNTER__>(acc);
+        if (once_per_block(acc)) {
+          const double pk1 = p1 * vertices[ivertex].rho() / (p1 + p2);
+          const double pk2 = p2 * vertices[ivertex].rho() / (p1 + p2);
+          doSplit = ((z2 - z1) > epsilon) && alpaka::math::isfinite(acc, pk1) && alpaka::math::isfinite(acc, pk2);
+        }
+        alpaka::syncBlockThreads(acc);
+        if (!doSplit)
+          continue;
         const int noFreeSlot = 999999;  // marks 'no empty vertex slot found'
         int nnew = noFreeSlot;
         // Find the first empty index to save the vertex

@@ -81,7 +81,10 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
 
         for (int itrackInVertex = 0; itrackInVertex < vertices[ivertex].ntracks(); itrackInVertex++) {
           int itrack = vertices[ivertex].track_id()[itrackInVertex];
-          float wxy = tracks[itrack].dxy2() <= precisionsq ? 1. / precisionsq : 1. / tracks[itrack].dxy2();
+          // Transverse error as in the C++ WeightedMeanPrimaryVertexEstimator: the track's own dxy error without the beam
+          // constraint, the error of the impact parameter to the beam line with it
+          const float dxy2 = useBeamSpotConstraint ? tracks[itrack].dxy2() : tracks[itrack].dxy2AtIP();
+          float wxy = dxy2 <= precisionsq ? 1. / precisionsq : 1. / dxy2;
           float wz = tracks[itrack].dz2() <= precisionsq ? 1. / precisionsq : 1. / tracks[itrack].dz2();
           x += tracks[itrack].x() * wxy;
           y += tracks[itrack].y() * wxy;
@@ -174,7 +177,8 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
             tx += px * t;
             ty += py * t;
             tz += pz * t;
-            float wx = tracks[itrack].dxy2() <= precisionsq ? 1. / precisionsq : 1. / tracks[itrack].dxy2();
+            const float dxy2 = useBeamSpotConstraint ? tracks[itrack].dxy2() : tracks[itrack].dxy2AtIP();
+            float wx = dxy2 <= precisionsq ? 1. / precisionsq : 1. / dxy2;
             float wz = tracks[itrack].dz2() <= precisionsq ? 1. / precisionsq : 1. / tracks[itrack].dz2();
 #ifdef DEBUG_RECOVERTEX_PRIMARYVERTEXPRODUCER_FITTERALGO
             printf("[WeightedVertexFitterAlgo::FitVertices()] Track wx: %1.9f, wz: %1.9f\n", wx, wz);
@@ -305,7 +309,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
           float tx = tracks[itrack].x();
           float ty = tracks[itrack].y();
           float tz = tracks[itrack].z();
-          float wx = tracks[itrack].dxy2();
+          float wx = useBeamSpotConstraint ? tracks[itrack].dxy2() : tracks[itrack].dxy2AtIP();
           float wz = tracks[itrack].dz2();
           chi2 +=
               (tx - x) * (tx - x) / (errx + wx) + (ty - y) * (ty - y) / (erry + wx) +
