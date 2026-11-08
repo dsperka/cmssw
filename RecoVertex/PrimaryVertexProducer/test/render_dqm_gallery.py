@@ -33,6 +33,7 @@ import ROOT
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, SCRIPT_DIR)
 import dqm_labels  # noqa: E402
+import mtd_labels  # noqa: E402
 
 ROOT.gROOT.SetBatch(True)
 ROOT.gStyle.SetOptStat(0)
@@ -43,15 +44,23 @@ COLORS = {
     "InBlocks": (ROOT.kRed + 1, ROOT.kFullSquare),
     "Alpaka": (ROOT.kAzure + 2, ROOT.kFullTriangleUp),
     "Alpaka-CPU": (ROOT.kGreen + 2, ROOT.kFullDiamond),
+    "Extra": (ROOT.kMagenta + 1, ROOT.kFullCross),
+    "Extra2": (ROOT.kOrange + 7, ROOT.kFullTriangleDown),
+    "Extra3": (ROOT.kCyan + 2, ROOT.kOpenSquare),
 }
-SERIES_ORDER = ["Old", "InBlocks", "Alpaka", "Alpaka-CPU"]
+SERIES_ORDER = ["Old", "InBlocks", "Alpaka", "Alpaka-CPU", "Extra", "Extra2", "Extra3"]
 # Names shown in plot legends / page legend (keys stay the internal series labels).
 DISPLAY = {
     "Old": "Legacy D.A.",
     "InBlocks": "D.A. In Blocks (C++)",
     "Alpaka": "D.A. In Blocks (Alpaka GPU)",
     "Alpaka-CPU": "D.A. In Blocks (Alpaka CPU)",
+    "Extra": "Extra series",
+    "Extra2": "Extra series 2",
+    "Extra3": "Extra series 3",
 }
+# DQM directory of one series inside the harvested file; {coll} is the per-series collection/sub-folder name.
+BASE_DIR = "DQMData/Run 1/Vertexing/Run summary/PrimaryVertexV/{coll}"
 # Optional time per event in ms, filled from --time-* arguments.
 TIMES = {}
 
@@ -69,10 +78,26 @@ def categorize(name):
         return "Gen-vertex distributions"
     if name.startswith(("RecoAllAssoc2Gen", "RecoAllAssoc2MultiMatchedGen", "RecoAssoc2GenPV", "RecoPVAssoc2GenPV")):
         return "Reco-vertex distributions"
+    # MTD vertex validation (Validation/MtdValidation, Primary4DVertexValidation) histograms
+    if name.startswith(("PUvs", "RecVerNumber", "RecSelVerNumber", "SimVerNumber", "MatchQuality")):
+        return "MTD: real, fake and split vertices"
+    if name.startswith(("Time", "recPV", "simPV", "DeltaZ", "DeltaT", "RecoPVPos", "RecoPosIn", "SimPosIn", "SelVtxTrk")):
+        return "MTD: vertex position, time and tracks"
+    if name.startswith(("Barrel", "Endcap")):
+        return "MTD: particle identification"
+    if name.startswith(("Jets",)):
+        return "MTD: jets"
+    if name.startswith(("EffEtaTot", "EffPtTot", "MatchedTP", "TP", "FakeTrack", "UnAssocTracks", "FractionUnAssoc")):
+        return "MTD: tracks and truth particles"
     return "Other"
 
 
 CATEGORY_ORDER = [
+    "MTD: real, fake and split vertices",
+    "MTD: vertex position, time and tracks",
+    "MTD: tracks and truth particles",
+    "MTD: particle identification",
+    "MTD: jets",
     "Efficiency, fake, duplicate & merge rates",
     "Mis-tag rate",
     "Pulls & resolutions",
@@ -89,10 +114,23 @@ def parse_args():
     p.add_argument("--inblocks", help="InBlocks mode harvested DQM root file")
     p.add_argument("--alpaka", help="Alpaka mode harvested DQM root file")
     p.add_argument("--alpaka-cpu", help="Alpaka mode (SerialSync/CPU backend) harvested DQM root file")
+    p.add_argument("--extra", help="Fifth series, harvested DQM root file (label it with --display Extra=NAME)")
+    p.add_argument("--extra-collection", default="offlinePrimaryVertices")
+    p.add_argument("--time-extra", type=float, help="Producer time per event for the fifth series, in ms")
+    p.add_argument("--extra2", help="Sixth series, harvested DQM root file")
+    p.add_argument("--extra2-collection", default="offlinePrimaryVertices")
+    p.add_argument("--time-extra2", type=float)
+    p.add_argument("--extra3", help="Seventh series, harvested DQM root file")
+    p.add_argument("--extra3-collection", default="offlinePrimaryVertices")
+    p.add_argument("--time-extra3", type=float)
     p.add_argument("--time-old", type=float, help="Producer time per event for Old, in ms (shown in the legend)")
     p.add_argument("--time-inblocks", type=float, help="Producer time per event for InBlocks, in ms")
     p.add_argument("--time-alpaka", type=float, help="Producer time per event for Alpaka GPU, in ms")
     p.add_argument("--time-alpaka-cpu", type=float, help="Producer time per event for Alpaka CPU, in ms")
+    p.add_argument("--base-dir", default=None, metavar="TEMPLATE",
+                   help="DQM directory template with a {coll} placeholder, e.g. \"DQMData/Run 1/MTD/Run summary/Vertices/{coll}\" (default: the PrimaryVertexV directory)")
+    p.add_argument("--display", action="append", default=[], metavar="KEY=NAME",
+                   help="Override the legend name of a series, e.g. --display Alpaka=\"GNN vertex slots\" (keys: Old, InBlocks, Alpaka, Alpaka-CPU)")
     p.add_argument("--old-collection", default="offlinePrimaryVertices")
     p.add_argument("--inblocks-collection", default="offlinePrimaryVertices")
     p.add_argument("--alpaka-collection", default="vertexAoS")
@@ -102,6 +140,20 @@ def parse_args():
     p.add_argument("--subtitle", default="", help="Extra text for the page subtitle")
     p.add_argument("--workdir", default=None, help="Directory to write intermediate PNGs (default: temp dir)")
     return p.parse_args()
+
+
+def resolve_labels(name, hist=None):
+    """(title, xlabel, ylabel, definition): the DA/vertex-analysis table first, then the MTD table, then the histogram's own axis titles."""
+    title, xlabel, ylabel, definition = dqm_labels.derive(name)
+    if xlabel and xlabel != name:
+        return title, xlabel, ylabel, definition
+    m = mtd_labels.derive(name)
+    if m:
+        return m
+    if hist is not None:
+        own_x, own_y = hist.GetXaxis().GetTitle().strip(), hist.GetYaxis().GetTitle().strip()
+        return (hist.GetTitle() or title), (own_x or xlabel), (own_y or ylabel), definition
+    return title, xlabel, ylabel, definition
 
 
 def build_series(args):
@@ -114,6 +166,12 @@ def build_series(args):
         series["Alpaka"] = (args.alpaka, args.alpaka_collection)
     if args.alpaka_cpu:
         series["Alpaka-CPU"] = (args.alpaka_cpu, args.alpaka_cpu_collection)
+    if args.extra:
+        series["Extra"] = (args.extra, args.extra_collection)
+    if args.extra2:
+        series["Extra2"] = (args.extra2, args.extra2_collection)
+    if args.extra3:
+        series["Extra3"] = (args.extra3, args.extra3_collection)
     if len(series) < 2:
         sys.exit("Need at least two of --old/--inblocks/--alpaka to compare.")
     return series
@@ -127,9 +185,9 @@ def render(series, outdir, label_order):
         if not tf or tf.IsZombie():
             sys.exit(f"Could not open {fn}")
         tfiles[label] = tf
-        d = tf.Get(f"DQMData/Run 1/Vertexing/Run summary/PrimaryVertexV/{coll}")
+        d = tf.Get(BASE_DIR.format(coll=coll))
         if not d:
-            sys.exit(f"Could not find PrimaryVertexV/{coll} in {fn}")
+            sys.exit(f"Could not find {BASE_DIR.format(coll=coll)} in {fn}")
         dirs[label] = d
 
     namesets = {}
@@ -195,7 +253,7 @@ def render(series, outdir, label_order):
         ymin_axis = ymin - (ymax - ymin) * 0.15 if ymin < 0 else 0.0
         ymax_axis = ymin_axis + ((ymax - ymin_axis) / 0.66 if ymax > ymin_axis else 1.0)
 
-        _title, xlabel, ylabel, _definition = dqm_labels.derive(name)
+        title, xlabel, ylabel, definition = resolve_labels(name, hists[first_label])
         if not xlabel:
             xlabel = name
 
@@ -221,7 +279,7 @@ def render(series, outdir, label_order):
             h.GetYaxis().SetLabelSize(0.042)
             h.GetXaxis().SetTitle(xlabel)
             h.GetYaxis().SetTitle(ylabel)
-            h.GetXaxis().SetTitleSize(0.046)
+            h.GetXaxis().SetTitleSize(0.046 if len(xlabel) <= 42 else 0.034)
             h.GetYaxis().SetTitleSize(0.046)
             h.GetXaxis().SetTitleOffset(1.35)
             h.GetYaxis().SetTitleOffset(1.55)
@@ -244,6 +302,8 @@ def render(series, outdir, label_order):
             "file": safe_name + ".png",
             "category": categorize(name),
             "class": classmap[name],
+            "title": title,
+            "definition": definition,
         })
 
         if (i + 1) % 50 == 0:
@@ -276,7 +336,9 @@ def build_html(manifest, outdir, series, title, subtitle):
             with open(os.path.join(outdir, item["file"]), "rb") as imgf:
                 b64 = base64.b64encode(imgf.read()).decode("ascii")
             raw_name = item["name"]
-            t, _xlab, _ylab, definition = dqm_labels.derive(raw_name)
+            t, definition = item.get("title"), item.get("definition", "")
+            if not t:
+                t, _xlab, _ylab, definition = dqm_labels.derive(raw_name)
             name = html.escape(raw_name)
             title_esc = html.escape(t)
             def_html = f'<div class="card-def">{html.escape(definition)}</div>' if definition else ""
@@ -302,7 +364,7 @@ def build_html(manifest, outdir, series, title, subtitle):
     for label in SERIES_ORDER:
         if label not in series:
             continue
-        color_hex = {"Old": "#000", "InBlocks": "#e3281f", "Alpaka": "#2878c8", "Alpaka-CPU": "#2ca02c"}[label]
+        color_hex = {"Old": "#000", "InBlocks": "#e3281f", "Alpaka": "#2878c8", "Alpaka-CPU": "#2ca02c", "Extra": "#b02fb0", "Extra2": "#e8590c", "Extra3": "#0b9fb0"}[label]
         legend_items.append(f'<span><i class="dot" style="background:{color_hex}"></i> {html.escape(DISPLAY[label])}{(" &middot; %.0f ms/event" % TIMES[label]) if label in TIMES else ""}</span>')
 
     CARDS = "\n".join(cards_html)
@@ -448,7 +510,15 @@ def build_html(manifest, outdir, series, title, subtitle):
 def main():
     args = parse_args()
     series = build_series(args)
-    for lab, v in (("Old", args.time_old), ("InBlocks", args.time_inblocks), ("Alpaka", args.time_alpaka), ("Alpaka-CPU", args.time_alpaka_cpu)):
+    global BASE_DIR
+    if args.base_dir:
+        BASE_DIR = args.base_dir
+    for kv in args.display:
+        k, _, v = kv.partition("=")
+        if k not in DISPLAY or not v:
+            sys.exit(f"--display expects KEY=NAME with KEY in {list(DISPLAY)}: {kv!r}")
+        DISPLAY[k] = v
+    for lab, v in (("Old", args.time_old), ("InBlocks", args.time_inblocks), ("Alpaka", args.time_alpaka), ("Alpaka-CPU", args.time_alpaka_cpu), ("Extra", args.time_extra), ("Extra2", args.time_extra2), ("Extra3", args.time_extra3)):
         if v is not None:
             TIMES[lab] = v
     label_order = [l for l in SERIES_ORDER if l in series]
