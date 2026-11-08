@@ -1,0 +1,9 @@
+Primary vertex DQM on 16_1 with the final code (after the DA-in-blocks agreement fixes), 91 events RelValZMM PU150 (Zmumu_16X_local.txt).
+Series: legacy DA, C++ In Blocks, Alpaka serial CPU, Alpaka CUDA (TITAN V). Harvested DQM, globalEfficiencies (vertexAoS / offlinePrimaryVertices):
+                 legacy   C++IB    AlpakaCPU AlpakaGPU
+effic_vs_Z       0.7073   0.7408   0.7418    0.7371
+fakerate_vs_Z    0.1320   0.1294   0.1305    0.1310
+merged_vs_Z      0.1260   0.1533   0.1533    0.1535
+gen_duplicate    0.0074   0.0122   0.0123    0.0130
+CPU and GPU differ by 0.005 in efficiency (not investigated).
+Gallery: galleries/pv_dqm_gallery_final_code_cpu_gpu.html, phone page: phone/final_code_cpu_gpu.html
