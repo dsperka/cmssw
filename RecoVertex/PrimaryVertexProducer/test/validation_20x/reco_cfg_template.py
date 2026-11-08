@@ -55,7 +55,7 @@ process.tracksSoA = cms.EDProducer("PortableTrackSoAProducer@alpaka",
     TkFilterParameters = cms.PSet(
         maxNormalizedChi2 = cms.double(10.0), minPixelLayersWithHits = cms.int32(2), minSiliconLayersWithHits = cms.int32(5),
         maxD0Significance = cms.double(4.0), maxD0Error = cms.double(1.0), maxDzError = cms.double(1.0), minPt = cms.double(0.0),
-        maxEta = cms.double(2.4), trackQuality = cms.string("any"), vertexSize = cms.double(0.006), d0CutOff = cms.double(3.)))
+        maxEta = cms.double(4.0), trackQuality = cms.string("any"), vertexSize = cms.double(0.006), d0CutOff = cms.double(3.)))
 process.beamSpotSoA = cms.EDProducer("BeamSpotDeviceProducer@alpaka", src = cms.InputTag("offlineBeamSpot"))
 process.vertexSoA = cms.EDProducer("PrimaryVertexProducerPortable@alpaka",
     TrackLabel = cms.InputTag("tracksSoA"), BeamSpotLabel = cms.InputTag("beamSpotSoA"),

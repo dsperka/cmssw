@@ -68,38 +68,41 @@ Collections produced and validated:
 
 ## Results on this sample (200 events, CPU, serial Alpaka backend)
 Per-event averages from `Primary4DVertexValidation` (track-based matching, ndof cut). 189.4 simulated vertices per event.
-The first 100 events alone (`results/summary_per_event.txt`, one file) give the same picture to within statistical noise.
+Alpaka runs with `maxEta = 4.0`, like the C++ in blocks, so both cover the same tracks.
 
 | | D.A. 3D | D.A. 4D | C++ In Blocks | Alpaka CPU | GNN |
 |---|---|---|---|---|---|
-| reco, all | 138.5 | 137.4 | 143.6 | 141.6 | 154.4 |
-| pass ndof | 129.3 | 120.1 | 136.0 | 126.0 | 112.6 |
-| real | 119.2 | 111.7 | 120.5 | 116.1 | 98.5 |
-| fake | 10.1 | 8.4 | 15.5 | 9.9 | 14.2 |
-| split | 8.4 | 6.2 | 12.2 | 6.6 | 12.7 |
-| real / (real + fake) | 0.922 | 0.930 | 0.886 | 0.921 | 0.874 |
-| split fraction | 0.065 | 0.052 | 0.090 | 0.052 | 0.113 |
-| time, ms / event | 779 | 838 | 230 | 314 | 1343 |
+| reco, all | 138.5 | 137.4 | 143.4 | 143.4 | 154.4 |
+| pass ndof | 129.3 | 120.1 | 135.9 | 135.9 | 112.6 |
+| real | 119.2 | 111.7 | 120.5 | 120.5 | 98.5 |
+| fake | 10.1 | 8.4 | 15.4 | 15.4 | 14.2 |
+| split | 8.4 | 6.2 | 12.1 | 12.0 | 12.7 |
+| real / (real + fake) | 0.922 | 0.930 | 0.887 | 0.887 | 0.874 |
+| split fraction | 0.065 | 0.052 | 0.089 | 0.088 | 0.113 |
+| leading vertex, pileup track fraction | 0.288 | 0.250 | 0.302 | 0.301 | 0.208 |
+| time, ms / event | 761 | 825 | 232 | 364 | 1340 |
 
 Time is the sum of the producer modules of each chain from the reconstruction log (including the vertex sorter, about 110 ms in each),
-single run, one thread.
+single run, one thread. Other jobs ran on the machine at the same time, so the times are indicative; Alpaka CPU measured 314 ms in an earlier quiet run.
 
 What it shows:
-- C++ in blocks is 3.4 times faster than the legacy 3D DA; Alpaka CPU on the serial backend is 2.5 times faster, with purity comparable to the 3D DA.
-- **C++ in blocks and Alpaka CPU disagree here** (fake 15.5 vs 9.9 per event, split 12.2 vs 6.6). They agreed closely in the 16_1 campaign
-  under the position-only matching of `PrimaryVertexAnalyzer4PUSlimmed`. A likely cause is the different fitters (weighted-mean in C++, the device fitter in Alpaka);
-  this was not tested.
+- C++ in blocks is 3.3 times faster than the legacy 3D DA; Alpaka CPU on the serial backend is about 2 times faster.
+- **C++ in blocks and Alpaka CPU agree.** Vertex counts per event are the same, the leading-vertex fractions differ by 0.0005, and the vertex track lists overlap by 99.5% on average
+  (vertices per event 135.87 and 135.90 passing ndof, in the direct collection comparison). Earlier versions of the Alpaka code differed (fake 9.9 against 15.5 per event); the causes were
+  (1) the arbitration resort read stale entries of the per-block order lists (duplicate vertices), (2) the vertex list compaction in `finalizeVertices` did not update `nV`
+  (stale copies of valid vertices were fitted again), (3) the cross-block merge did not chain neighbouring candidates like the C++ code,
+  (4) in thermalize, an extra update at convergence and a different reassignment criterion, (5) the split acceptance check, (6) float versus double storage of the track and vertex quantities,
+  and (7) the C++ outlier rejection did not store the track weights (rejected tracks kept weight 1). The pileup fraction of the leading vertex is the one to compare: 0.302 against 0.301.
+- Both in-blocks versions have more fake and split vertices than the 3D and 4D DA, and fewer tracks left in no vertex (0.055 against 0.068 and 0.100).
 - The GNN is below the DA variants on real vertices and purity on this sample (D128, PU150). 42 of its 154 vertices per event fail the ndof cut (200 events: 154.4 reco, 112.6 pass).
   The PR targets D121 PU200, and the model may be trained for that.
 
 ## Files
 - `results/summary_per_event_200events.txt`, `results/DQM_6way_harvested_200events.root`: the numbers above and the harvested file (200 events).
-  The `*_200events` and plain versions of each file are the 200-event and first-100-event results.
-- `galleries/pv_dqm_gallery_6way_200events.html`: all plots shared by the five collections (self-contained HTML; the plain `pv_dqm_gallery_6way.html` is the 100-event one). `phone/`: phone-sized pages.
+- `galleries/pv_dqm_gallery_6way_200events.html`: all plots shared by the five collections (self-contained HTML). `phone/`: phone-sized pages.
 - `render_dqm_gallery.py`, `dqm_labels.py`, `mtd_labels.py`: the gallery generator. `mtd_labels.py` gives every MTD validation histogram a plain-language title, an explanatory x-axis and y-axis title
   and a short description (what is plotted, which vertices and tracks, what the matching does); the original histogram name stays on each card as the subtitle.
   Options added for this work: `--base-dir`, `--display KEY=NAME`, up to seven series (`--extra`, `--extra2`, `--extra3`).
-  The 100-event gallery (`pv_dqm_gallery_6way.html`) and its phone pages were made before the new labels and show the raw histogram names on the x-axis.
 - `summarize_dqm.py`: the per-event table.
 
 ## Running on lxplus, with a GPU (gives the seven-way comparison)
@@ -132,4 +135,4 @@ Alpaka and GNN folders next to the full CPU job. Seven series: 3D DA, 4D DA, C++
 No OpenSSL workaround should be needed there.
 
 ## Not done
-Alpaka GPU (needs the lxplus recipe above); the C++ versus Alpaka difference; a D121 PU200 sample for the GNN; `PrimaryVertexAnalyzer4PUSlimmed` rebinning (vertex-count histograms were empty with the default range for PU150; not needed for the MTD validation).
+Alpaka GPU on this release (needs the lxplus recipe above); a D121 PU200 sample for the GNN; `PrimaryVertexAnalyzer4PUSlimmed` rebinning (vertex-count histograms were empty with the default range for PU150; not needed for the MTD validation).
