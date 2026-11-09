@@ -329,7 +329,9 @@ namespace WeightedMeanFitter {
       dist += std::pow(p.first.z() - z, 2) / (std::pow(wz, 2) + err(2, 2));
       chi2 += dist;
     }
-    TransientVertex v(GlobalPoint(x, y, z), err, iclus, chi2, (int)ndof_x);
+    // ndof_x is the number of tracks with non-zero weight; same degrees of freedom as weightedMeanOutlierRejection
+    float ndof = ndof_x > 1 ? (2 * ndof_x - 3) : 0.00001;
+    TransientVertex v(GlobalPoint(x, y, z), err, iclus, chi2, ndof);
     TransientVertex::TransientTrackToFloatMap weightMap;
     for (unsigned int i = 0; i < iclus.size(); i++)
       weightMap[iclus[i]] = trackWeights[i];
