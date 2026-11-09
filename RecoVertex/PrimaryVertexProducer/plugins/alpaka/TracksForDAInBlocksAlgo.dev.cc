@@ -39,9 +39,31 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
         for (int32_t iblock = 0; iblock < nBlocks; iblock++) {
           // I.e. first track in the block in which we are + thread in which we are
           int32_t oldIndex = (iblock * overlapStart) + iNewTrack;
-          if (oldIndex >= nTOld)
-            break;  // I.e. we reached the end of the input block
           int32_t newIndex = iNewTrack + iblock * blockSize;
+          if (oldIndex >= nTOld) {
+            // We reached the end of the input: the rest of the slots of the last block get no track, but they are still
+            // read by the clusterizer kernels (which only skip tracks with isGood() == false), and the device memory
+            // comes from a caching allocator, so it holds whatever a previous module left there. Make them inert.
+            trackInBlocks[newIndex].x() = 0.;
+            trackInBlocks[newIndex].y() = 0.;
+            trackInBlocks[newIndex].z() = 0.;
+            trackInBlocks[newIndex].px() = 0.;
+            trackInBlocks[newIndex].py() = 0.;
+            trackInBlocks[newIndex].pz() = 0.;
+            trackInBlocks[newIndex].weight() = 0.;
+            trackInBlocks[newIndex].ttIndex() = -1;
+            trackInBlocks[newIndex].dz2() = 0.;
+            trackInBlocks[newIndex].oneoverdz2() = 0.;
+            trackInBlocks[newIndex].dxy2AtIP() = 0.;
+            trackInBlocks[newIndex].dxy2() = 0.;
+            trackInBlocks[newIndex].sum_Z() = 0.;
+            trackInBlocks[newIndex].kmin() = 0;
+            trackInBlocks[newIndex].kmax() = 0;
+            trackInBlocks[newIndex].aux1() = 0.;
+            trackInBlocks[newIndex].aux2() = 0.;
+            trackInBlocks[newIndex].isGood() = false;
+            continue;
+          }
 #ifdef DEBUG_RECOVERTEX_PRIMARYVERTEXPRODUCERPORTABLE_BLOCKALGO
           printf(
               "[TracksForDAInBlocksAlgo::operator()] iblock %i, oldIndex %i => newIndex %i, x: %1.5f, y: %1.5f, "
