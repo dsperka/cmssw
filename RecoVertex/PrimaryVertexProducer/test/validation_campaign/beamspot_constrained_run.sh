@@ -17,7 +17,7 @@ run() { # tag mode backend
   mv DQM_V0001_R000000001__Global__CMSSW_*__RECO.root $OUT/${tag}_harv.root
 }
 run old Old ""
-run inblocks InBlocks ""
+run inblocks InBlocks "" # (rerun with --minndof 2, see the gallery subtitle)
 run alpaka_cpu Alpaka cpu
 run alpaka_gpu Alpaka gpu-nvidia
 echo ALLDONE

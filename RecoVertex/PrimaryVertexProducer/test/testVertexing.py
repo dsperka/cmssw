@@ -10,6 +10,7 @@ parser.add_argument('-m', '--mode', type=str, default='auto',
 parser.add_argument('-b', '--backend', type=str, default='auto',
                     help='Alpaka backend. Comma separated list. Possible options: cpu, gpu-nvidia, gpu-amd')
 parser.add_argument('--bs', default=False, action="store_true", help='Validate the beam-spot-constrained vertex collection instead of the unconstrained one')
+parser.add_argument('--minndof', type=float, default=0.0, help='minNdof of the vertex collections in InBlocks mode (the legacy WithBS collection uses 2)')
 parser.add_argument('-d', '--dqm', default=False, action="store_true", help='If enabled, produce DQM plots')
 parser.add_argument('-i', '--inputFiles', type=str, default='/store/relval/CMSSW_15_0_0_pre2/RelValTTbar_14TeV/GEN-SIM-RECO/PU_141X_mcRun4_realistic_v3_STD_Run4D110_PU-v1/2590000/253f8a7f-1a05-4ae8-9065-5cff6b69b175.root', help='Run over these files, if "txt" in name, will treat it as list')
 parser.add_argument('-o', '--outputFile', type=str, default="test.root", help='Output file')
@@ -176,13 +177,13 @@ elif args.mode == "InBlocks":
        		[cms.PSet(label=cms.string(""),
            	algorithm=cms.string("WeightedMeanFitter"),
            	chi2cutoff = cms.double(2.5),
-           	minNdof=cms.double(0.0),
+           	minNdof=cms.double(args.minndof),
            	useBeamConstraint = cms.bool(args.bs),
            	maxDistanceToBeam = cms.double(1.0)
         	),
         	cms.PSet(label=cms.string("WithBS"),
             	algorithm = cms.string('WeightedMeanFitter'),
-            	minNdof=cms.double(0.0),
+            	minNdof=cms.double(args.minndof),
             	chi2cutoff = cms.double(2.5),
             	useBeamConstraint = cms.bool(True),
             	maxDistanceToBeam = cms.double(1.0)
