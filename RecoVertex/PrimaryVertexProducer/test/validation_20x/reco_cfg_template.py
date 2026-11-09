@@ -44,9 +44,11 @@ process.unsortedOfflinePrimaryVerticesInBlocks = process.unsortedOfflinePrimaryV
     TkClusParameters = dict(TkDAClusParameters = dict(runInBlocks = True, block_size = 512, overlap_frac = 0.5, mintrkweight = cms.double(0.25))),
     vertexCollections = cms.VPSet(
         cms.PSet(label = cms.string(""), algorithm = cms.string("WeightedMeanFitter"), chi2cutoff = cms.double(2.5),
-                 minNdof = cms.double(0.0), useBeamConstraint = cms.bool(False), maxDistanceToBeam = cms.double(1.0)),
+                 minNdof = cms.double(0.0), useBeamConstraint = cms.bool(False), maxDistanceToBeam = cms.double(1.0),
+                 vertexTimeParameters = cms.PSet(algorithm = cms.string('fromTracksPID'))),
         cms.PSet(label = cms.string("WithBS"), algorithm = cms.string("WeightedMeanFitter"), chi2cutoff = cms.double(2.5),
-                 minNdof = cms.double(0.0), useBeamConstraint = cms.bool(True), maxDistanceToBeam = cms.double(1.0))))
+                 minNdof = cms.double(0.0), useBeamConstraint = cms.bool(True), maxDistanceToBeam = cms.double(1.0),
+                 vertexTimeParameters = cms.PSet(algorithm = cms.string('fromTracksPID')))))
 
 # Alpaka: portable tracks -> DA in blocks on the device -> reco::Vertex
 process.tracksSoA = cms.EDProducer("PortableTrackSoAProducer@alpaka",
@@ -66,7 +68,9 @@ process.vertexSoA = cms.EDProducer("PrimaryVertexProducerPortable@alpaka",
         Tstop = cms.double(0.5), vertexSize = cms.double(0.006), d0CutOff = cms.double(3.), dzCutOff = cms.double(3.),
         zmerge = cms.double(1e-2), uniquetrkweight = cms.double(0.8), uniquetrkminp = cms.double(0.0), mintrkweight = cms.double(0.25)))
 process.unsortedOfflinePrimaryVerticesAlpaka = cms.EDProducer("RecoVertexFromSoAProducer",
-    soaVertex = cms.InputTag("vertexSoA"), srcTrack = cms.InputTag("generalTracks"))
+    soaVertex = cms.InputTag("vertexSoA"), srcTrack = cms.InputTag("generalTracks"),
+    # vertex time as for the standard 3D collection (fromTracksPID)
+    vertexTimeParameters = cms.PSet(algorithm = cms.string("fromTracksPID")))
 
 def sortedChain(proc, tag):
     # same sorting and timing-PID chain as the standard 3D collection

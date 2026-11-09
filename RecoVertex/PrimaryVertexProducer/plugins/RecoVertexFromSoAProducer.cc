@@ -6,7 +6,15 @@
 #include "FWCore/Utilities/interface/InputTag.h"
 #include "FWCore/Utilities/interface/EDGetToken.h"
 #include "FWCore/Utilities/interface/EDPutToken.h"
-#include "FWCore/Framework/interface/global/EDProducer.h"
+#include "FWCore/Framework/interface/stream/EDProducer.h"
+#include "FWCore/Framework/interface/ConsumesCollector.h"
+#include "FWCore/Framework/interface/ESHandle.h"
+#include "TrackingTools/TransientTrack/interface/TransientTrackBuilder.h"
+#include "TrackingTools/TransientTrack/interface/TransientTrack.h"
+#include "TrackingTools/Records/interface/TransientTrackRecord.h"
+#include "RecoVertex/VertexPrimitives/interface/TransientVertex.h"
+#include "RecoVertex/PrimaryVertexProducer/interface/VertexTimeAlgorithmFromTracksPID.h"
+#include <memory>
 #include "FWCore/Framework/interface/Event.h"
 #include "FWCore/Framework/interface/EventSetup.h"
 #include "DataFormats/VertexReco/interface/VertexFwd.h"
@@ -24,31 +32,51 @@
    * - consuming set of reco::Tracks and portablevertex SoA
    * - produces a host reco::vertexCollection
  */
-class RecoVertexFromSoAProducer : public edm::global::EDProducer<> {
+class RecoVertexFromSoAProducer : public edm::stream::EDProducer<> {
 public:
   RecoVertexFromSoAProducer(edm::ParameterSet const& config)
       : portableVertexToken_(consumes(config.getParameter<edm::InputTag>("soaVertex"))),
         soaTracksInBlocksToken_(consumes(config.getParameter<edm::InputTag>("soaVertex"))),
         recoTrackToken_(consumes(config.getParameter<edm::InputTag>("srcTrack"))),
-        recoVertexToken_(produces<reco::VertexCollection>()) {}
+        theTTBToken_(esConsumes(edm::ESInputTag("", "TransientTrackBuilder"))),
+        recoVertexToken_(produces<reco::VertexCollection>()) {
+    // optional vertex time, computed as for the standard 3D producer (same algorithm, same inputs)
+    const auto& timeConf = config.getParameter<edm::ParameterSet>("vertexTimeParameters");
+    const std::string timeAlgo = timeConf.getParameter<std::string>("algorithm");
+    if (timeAlgo == "fromTracksPID") {
+      edm::ConsumesCollector collector = consumesCollector();
+      timeEstimator_ = std::make_unique<VertexTimeAlgorithmFromTracksPID>(
+          timeConf.getParameter<edm::ParameterSet>("fromTracksPID"), collector);
+    } else if (!timeAlgo.empty()) {
+      throw cms::Exception("Configuration") << "RecoVertexFromSoAProducer: unknown vertexTimeParameters.algorithm " << timeAlgo;
+    }
+  }
 
   static void fillDescriptions(edm::ConfigurationDescriptions& descriptions) {
     edm::ParameterSetDescription desc;
     desc.add<edm::InputTag>("soaVertex");
     desc.add<edm::InputTag>("srcTrack");
+    edm::ParameterSetDescription psdTime;
+    psdTime.add<std::string>("algorithm", "");
+    edm::ParameterSetDescription psdPID;
+    VertexTimeAlgorithmFromTracksPID::fillPSetDescription(psdPID);
+    psdTime.add<edm::ParameterSetDescription>("fromTracksPID", psdPID);
+    desc.add<edm::ParameterSetDescription>("vertexTimeParameters", psdTime);
 
     descriptions.addWithDefaultLabel(desc);
   }
 
 private:
-  void produce(edm::StreamID, edm::Event&, const edm::EventSetup&) const override;
+  void produce(edm::Event&, const edm::EventSetup&) override;
   const edm::EDGetTokenT<::reco::VertexHostCollection> portableVertexToken_;
   const edm::EDGetTokenT<::reco::TrackForVertexHostCollection> soaTracksInBlocksToken_;
   const edm::EDGetTokenT<reco::TrackCollection> recoTrackToken_;
+  const edm::ESGetToken<TransientTrackBuilder, TransientTrackRecord> theTTBToken_;
   const edm::EDPutTokenT<reco::VertexCollection> recoVertexToken_;
+  std::unique_ptr<VertexTimeAlgorithmFromTracksPID> timeEstimator_;
 };
 
-void RecoVertexFromSoAProducer::produce(edm::StreamID, edm::Event& iEvent, const edm::EventSetup& iSetup) const {
+void RecoVertexFromSoAProducer::produce(edm::Event& iEvent, const edm::EventSetup& iSetup) {
   // Book inputs and space for outputs
   const ::reco::VertexHostCollection& hostVertex = iEvent.get(portableVertexToken_);
   const ::reco::VertexHostCollection::ConstView& hostVertexView = hostVertex.const_view();
@@ -56,6 +84,10 @@ void RecoVertexFromSoAProducer::produce(edm::StreamID, edm::Event& iEvent, const
   const ::reco::TrackForVertexHostCollection::ConstView& hostTracksInBlocksView = hostTracksInBlocks.const_view();
   // Note that we need reco::Tracks for building the track Reference vector inside the reco::Vertex
   auto tracks = iEvent.getHandle(recoTrackToken_);
+
+  const TransientTrackBuilder* ttBuilder = timeEstimator_ ? &iSetup.getData(theTTBToken_) : nullptr;
+  if (timeEstimator_)
+    timeEstimator_->setEvent(iEvent, iSetup);
 
   auto result = std::make_unique<reco::VertexCollection>();
 
@@ -70,20 +102,66 @@ void RecoVertexFromSoAProducer::produce(edm::StreamID, edm::Event& iEvent, const
     err[0][0] = hostVertexView[iV].errx();
     err[1][1] = hostVertexView[iV].erry();
     err[2][2] = hostVertexView[iV].errz();
-    // Then we can actually create the vertex
-    vColl.emplace_back(reco::Vertex::Point(hostVertexView[iV].x(), hostVertexView[iV].y(), hostVertexView[iV].z()),
-                       err,
-                       hostVertexView[iV].chi2(),
-                       hostVertexView[iV].ndof(),
-                       hostVertexView[iV].ntracks());
-    auto& newV = vColl.back();
-    // Finally, add references to the reco::Track used for building it
-    for (int iT = 0; iT < hostVertexView[iV].ntracks(); iT++) {
+    const int nTrk = hostVertexView[iV].ntracks();
+    // reco::Track references used for building the vertex
+    std::vector<reco::TrackRef> trkRefs;
+    std::vector<float> trkWeights;
+    trkRefs.reserve(nTrk);
+    trkWeights.reserve(nTrk);
+    for (int iT = 0; iT < nTrk; iT++) {
       int blockLocalTrack = hostVertexView[iV].track_id()[iT];
       int new_itrack = hostTracksInBlocksView[blockLocalTrack].ttIndex();
-      reco::TrackRef ref(tracks, new_itrack);
-      newV.add(ref, hostVertexView[iV].track_weight()[iT]);
+      trkRefs.emplace_back(tracks, new_itrack);
+      trkWeights.push_back(hostVertexView[iV].track_weight()[iT]);
     }
+    // Optional vertex time, from the same algorithm as the standard 3D producer
+    double vtxTime = 0.;
+    double vtxTimeError = 0.;
+    bool hasTime = false;
+    if (timeEstimator_) {
+      std::vector<reco::TransientTrack> ttracks;
+      ttracks.reserve(nTrk);
+      for (const auto& ref : trkRefs)
+        ttracks.push_back(ttBuilder->build(ref));
+      TransientVertex tv(GlobalPoint(hostVertexView[iV].x(), hostVertexView[iV].y(), hostVertexView[iV].z()),
+                         GlobalError(err(0, 0), 0, err(1, 1), 0, 0, err(2, 2)),
+                         ttracks,
+                         hostVertexView[iV].chi2(),
+                         hostVertexView[iV].ndof());
+      TransientVertex::TransientTrackToFloatMap wmap;
+      for (int iT = 0; iT < nTrk; iT++)
+        wmap[ttracks[iT]] = trkWeights[iT];
+      tv.weightMap(wmap);
+      float t = 0.f, terr = -1.f;
+      if (timeEstimator_->vertexTime(t, terr, tv)) {
+        vtxTime = t;
+        vtxTimeError = terr;
+        hasTime = true;
+      }
+    }
+    // Then we can actually create the vertex
+    if (hasTime) {
+      reco::Vertex::Error4D err4;
+      for (int i = 0; i < 3; i++)
+        for (int j = 0; j <= i; j++)
+          err4(i, j) = err(i, j);
+      err4(3, 3) = vtxTimeError * vtxTimeError;
+      vColl.emplace_back(reco::Vertex::Point(hostVertexView[iV].x(), hostVertexView[iV].y(), hostVertexView[iV].z()),
+                         err4,
+                         vtxTime,
+                         hostVertexView[iV].chi2(),
+                         hostVertexView[iV].ndof(),
+                         hostVertexView[iV].ntracks());
+    } else {
+      vColl.emplace_back(reco::Vertex::Point(hostVertexView[iV].x(), hostVertexView[iV].y(), hostVertexView[iV].z()),
+                         err,
+                         hostVertexView[iV].chi2(),
+                         hostVertexView[iV].ndof(),
+                         hostVertexView[iV].ntracks());
+    }
+    auto& newV = vColl.back();
+    for (int iT = 0; iT < nTrk; iT++)
+      newV.add(trkRefs[iT], trkWeights[iT]);
   }
   std::sort(vColl.begin(), vColl.end(), VertexHigherPtSquared());
   // And finally put the collection in the event

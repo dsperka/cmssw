@@ -6,7 +6,7 @@ This branch puts three things on one base and compares them with the same valida
 2. **PR 51862** (vertex-slot GNN, behind the `vertexSlotGNN` process modifier), applied unchanged.
 3. **DA in blocks** (PR 50766 and the developments of the 16_1 campaign): the C++ in-blocks clusterizer
    with a z-error-widened merge threshold, and the Alpaka CPU/GPU port (`PortableTrackSoAProducer`,
-   `PrimaryVertexProducerPortable`, `RecoVertexFromSoAProducer`), with the review changes applied.
+   `PrimaryVertexProducerPortable`, `RecoVertexFromSoAProducer`, which also computes the vertex time), with the review changes applied.
 
 Commits on the branch, in order:
 - `PR 51862 as submitted` (the 40 files of the PR, no change).
@@ -80,10 +80,12 @@ Alpaka runs with `maxEta = 4.0`, like the C++ in blocks, so both cover the same 
 | real / (real + fake) | 0.922 | 0.930 | 0.887 | 0.887 | 0.874 |
 | split fraction | 0.065 | 0.052 | 0.089 | 0.088 | 0.113 |
 | leading vertex, pileup track fraction | 0.288 | 0.250 | 0.302 | 0.301 | 0.208 |
-| time, ms / event | 761 | 825 | 232 | 364 | 1340 |
+| vertex time: RMS of t(rec) - t(sim), ns | 0.0568 | 0.0510 | 0.0587 | 0.0587 | 0.0516 |
+| vertex time: fraction within 30 ps | 0.693 | 0.723 | 0.680 | 0.681 | 0.719 |
+| time, ms / event | 752 | 834 | 237 | 366 | 1354 |
 
 Time is the sum of the producer modules of each chain from the reconstruction log (including the vertex sorter, about 110 ms in each),
-single run, one thread. Other jobs ran on the machine at the same time, so the times are indicative; Alpaka CPU measured 314 ms in an earlier quiet run.
+single run, one thread, no other jobs on the machine. The in-blocks chains include the vertex time fit.
 
 What it shows:
 - C++ in blocks is 3.3 times faster than the legacy 3D DA; Alpaka CPU on the serial backend is about 2 times faster.
@@ -93,6 +95,10 @@ What it shows:
   (stale copies of valid vertices were fitted again), (3) the cross-block merge did not chain neighbouring candidates like the C++ code,
   (4) in thermalize, an extra update at convergence and a different reassignment criterion, (5) the split acceptance check, (6) float versus double storage of the track and vertex quantities,
   and (7) the C++ outlier rejection did not store the track weights (rejected tracks kept weight 1). The pileup fraction of the leading vertex is the one to compare: 0.302 against 0.301.
+- **Vertex time.** All collections get the vertex time from the same algorithm (`vertexTimeParameters.algorithm = fromTracksPID`: an iterative fit over the pion, kaon and proton
+  hypotheses, weighted by the vertex track weights). For C++ in blocks it is set in the `vertexCollections` of the clone (replacing the VPSet drops the setting that the `phase2_timing_layer`
+  modifier adds to the standard producer); for Alpaka, `RecoVertexFromSoAProducer` takes the same `vertexTimeParameters` and runs the algorithm on each converted vertex. An earlier version of
+  this validation had no vertex time in the in-blocks collections (RMS 0.107 ns, 19% within 30 ps). The in-blocks time resolution (0.0587 ns) is close to the 3D one (0.0568 ns); the 4D and GNN collections are better (0.051 ns).
 - Both in-blocks versions have more fake and split vertices than the 3D and 4D DA, and fewer tracks left in no vertex (0.055 against 0.068 and 0.100).
 - The GNN is below the DA variants on real vertices and purity on this sample (D128, PU150). 42 of its 154 vertices per event fail the ndof cut (200 events: 154.4 reco, 112.6 pass).
   The PR targets D121 PU200, and the model may be trained for that.
