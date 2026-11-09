@@ -9,6 +9,7 @@ parser.add_argument('-m', '--mode', type=str, default='auto',
                     help='Mode. Old, InBlocks, Alpaka')
 parser.add_argument('-b', '--backend', type=str, default='auto',
                     help='Alpaka backend. Comma separated list. Possible options: cpu, gpu-nvidia, gpu-amd')
+parser.add_argument('--bs', default=False, action="store_true", help='Validate the beam-spot-constrained vertex collection instead of the unconstrained one')
 parser.add_argument('-d', '--dqm', default=False, action="store_true", help='If enabled, produce DQM plots')
 parser.add_argument('-i', '--inputFiles', type=str, default='/store/relval/CMSSW_15_0_0_pre2/RelValTTbar_14TeV/GEN-SIM-RECO/PU_141X_mcRun4_realistic_v3_STD_Run4D110_PU-v1/2590000/253f8a7f-1a05-4ae8-9065-5cff6b69b175.root', help='Run over these files, if "txt" in name, will treat it as list')
 parser.add_argument('-o', '--outputFile', type=str, default="test.root", help='Output file')
@@ -118,7 +119,7 @@ if args.mode == "Alpaka":
     		blockOverlap = cms.double(0.50),
     		blockSize    = cms.int32(512),
     		TkFitterParameters = cms.PSet(
-        		useBeamSpotConstraint = cms.bool(False),
+        		useBeamSpotConstraint = cms.bool(args.bs),
     		),
     		TkClusParameters = cms.PSet(    
         		coolingFactor = cms.double(0.6),  # moderate annealing speed
@@ -155,6 +156,11 @@ elif args.mode == "Old":
 
         process.offlinePrimaryVertices = offlinePrimaryVertices
         process.offlinePrimaryVertices.TkClusParameters.TkDAClusParameters.runInBlocks = cms.bool(False)
+        if args.bs:
+            # only the beam-spot-constrained collection, under the default label so that the DQM folders keep their names
+            process.offlinePrimaryVertices.vertexCollections = cms.VPSet(cms.PSet(label=cms.string(""),
+                algorithm=cms.string("WeightedMeanFitter"), chi2cutoff=cms.double(2.5), minNdof=cms.double(0.0),
+                useBeamConstraint=cms.bool(True), maxDistanceToBeam=cms.double(1.0)))
         process.vertexing_task = cms.EndPath(process.offlinePrimaryVertices)
         process.schedule = cms.Schedule(process.vertexing_task)
 elif args.mode == "InBlocks":
@@ -170,7 +176,7 @@ elif args.mode == "InBlocks":
            	algorithm=cms.string("WeightedMeanFitter"),
            	chi2cutoff = cms.double(2.5),
            	minNdof=cms.double(0.0),
-           	useBeamConstraint = cms.bool(False),
+           	useBeamConstraint = cms.bool(args.bs),
            	maxDistanceToBeam = cms.double(1.0)
         	),
         	cms.PSet(label=cms.string("WithBS"),
