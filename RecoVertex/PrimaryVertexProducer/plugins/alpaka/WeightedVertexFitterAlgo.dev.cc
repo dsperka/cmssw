@@ -48,8 +48,11 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
       float bsx = 0.;
       float bsy = 0.;
       if (useBeamSpotConstraint) {
-        bserrx = beamSpot->beamWidthX < precisionsq ? 1. / (precisionsq) : 1. / (beamSpot->beamWidthX);
-        bserry = beamSpot->beamWidthY < precisionsq ? 1. / (precisionsq) : 1. / (beamSpot->beamWidthY);
+        // beam spot weight 1/sigma^2, as the legacy WeightedMeanFitter (1/cxx)
+        bserrx = beamSpot->beamWidthX < precisionsq ? 1. / (precisionsq)
+                                                     : 1. / (beamSpot->beamWidthX * beamSpot->beamWidthX);
+        bserry = beamSpot->beamWidthY < precisionsq ? 1. / (precisionsq)
+                                                     : 1. / (beamSpot->beamWidthY * beamSpot->beamWidthY);
         bsx = beamSpot->x;
         bsy = beamSpot->y;
         corr_x = 1.0;
