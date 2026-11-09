@@ -94,6 +94,29 @@ vertex4DTrackSelMVA.toModify(unsortedOfflinePrimaryVertices4D, useMVACut = True)
 vertex4DTrackSelMVA.toModify(unsortedOfflinePrimaryVertices4DwithPID, useMVACut = True)
 
 ##
+## Primary vertices with the Alpaka implementation of the deterministic annealing in blocks
+## (runs on the device selected by the accelerator configuration, CPU or GPU)
+##
+from Configuration.ProcessModifiers.vertexInBlocksAlpaka_cff import vertexInBlocksAlpaka
+from RecoVertex.PrimaryVertexProducer.OfflinePrimaryVerticesAlpaka_cfi import (pvTracksSoA,
+                                                                              pvBeamSpotSoA,
+                                                                              pvVertexSoA,
+                                                                              pvVertexSoAWithBS,
+                                                                              unsortedOfflinePrimaryVerticesFromSoA,
+                                                                              unsortedOfflinePrimaryVerticesFromSoAWithBS)
+_alpakaVertexTask = cms.Task(pvTracksSoA,
+                             pvBeamSpotSoA,
+                             pvVertexSoA,
+                             pvVertexSoAWithBS,
+                             unsortedOfflinePrimaryVerticesFromSoAWithBS)
+vertexInBlocksAlpaka.toReplaceWith(unsortedOfflinePrimaryVertices, unsortedOfflinePrimaryVerticesFromSoA.clone())
+vertexInBlocksAlpaka.toModify(offlinePrimaryVerticesWithBS, vertices = "unsortedOfflinePrimaryVerticesFromSoAWithBS")
+# the vertex tasks above are replaced as a whole by the timing eras: add the Alpaka modules to each of them
+vertexInBlocksAlpaka.toReplaceWith(vertexrecoTask, cms.Task(vertexrecoTask.copy(), _alpakaVertexTask))
+(vertexInBlocksAlpaka & phase2_timing).toReplaceWith(vertexrecoTask, cms.Task(_phase2_tktiming_vertexrecoTask.copy(), _alpakaVertexTask))
+(vertexInBlocksAlpaka & phase2_timing_layer).toReplaceWith(vertexrecoTask, cms.Task(_phase2_tktiming_layer_vertexrecoTask.copy(), _alpakaVertexTask))
+
+##
 ## Modify for the tau embedding methods reco sim step
 ##
 from Configuration.ProcessModifiers.tau_embedding_sim_cff import tau_embedding_sim

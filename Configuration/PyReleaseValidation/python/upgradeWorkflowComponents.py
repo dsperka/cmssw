@@ -579,6 +579,17 @@ upgradeWFs['lstOnGPUIters01TrackingOnlyAlpakaValidationLST'].step3 = upgradeWFs[
     '--procModifiers': 'alpakaValidationLST,trackingIters01,trackingLST',
 }
 
+# LST on GPU (if available), initialStep+highPtTripletStep-only tracking-only, with the primary vertices
+# from the Alpaka implementation of the deterministic annealing in blocks (device: GPU if available)
+class UpgradeWorkflow_lstOnGPUIters01TrackingOnlyAlpakaVertex(UpgradeWorkflow_lstOnGPUIters01TrackingOnly):
+    pass
+upgradeWFs['lstOnGPUIters01TrackingOnlyAlpakaVertex'] = deepcopy(upgradeWFs['lstOnGPUIters01TrackingOnly'])
+upgradeWFs['lstOnGPUIters01TrackingOnlyAlpakaVertex'].suffix = '_lstOnGPUIters01TrackingOnlyAlpakaVertex'
+upgradeWFs['lstOnGPUIters01TrackingOnlyAlpakaVertex'].offset = 0.714
+upgradeWFs['lstOnGPUIters01TrackingOnlyAlpakaVertex'].step3 = upgradeWFs['trackingOnly'].step3 | {
+    '--procModifiers': 'vertexInBlocksAlpaka,trackingIters01,trackingLST',
+}
+
 #DeepCore seeding for JetCore iteration workflow
 class UpgradeWorkflow_seedingDeepCore(UpgradeWorkflow):
     def setup_(self, step, stepName, stepDict, k, properties):
