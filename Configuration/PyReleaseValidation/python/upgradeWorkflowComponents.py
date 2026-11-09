@@ -612,6 +612,17 @@ upgradeWFs['lstmkFitOnGPUIters01TrackingOnlyAlpakaValidationLST'].step3 = upgrad
     '--procModifiers': 'alpakaValidationLST,trackingLST,seedingLST,trackingMkFitHighPtTripletStep,trackingIters01'
 }
 
+# LST and mkFit on GPU (if available), initialStep+highPtTripletStep-only tracking-only, with the primary vertices
+# from the Alpaka implementation of the deterministic annealing in blocks (device: GPU if available)
+class UpgradeWorkflow_lstmkFitOnGPUIters01TrackingOnlyAlpakaVertex(UpgradeWorkflow_lstmkFitOnGPUIters01TrackingOnly):
+    pass
+upgradeWFs['lstmkFitOnGPUIters01TrackingOnlyAlpakaVertex'] = deepcopy(upgradeWFs['lstmkFitOnGPUIters01TrackingOnly'])
+upgradeWFs['lstmkFitOnGPUIters01TrackingOnlyAlpakaVertex'].suffix = '_lstmkFitOnGPUIters01TrackingOnlyAlpakaVertex'
+upgradeWFs['lstmkFitOnGPUIters01TrackingOnlyAlpakaVertex'].offset = 0.716
+upgradeWFs['lstmkFitOnGPUIters01TrackingOnlyAlpakaVertex'].step3 = upgradeWFs['trackingOnly'].step3 | {
+    '--procModifiers': 'vertexInBlocksAlpaka,trackingLST,seedingLST,trackingMkFitHighPtTripletStep,trackingIters01'
+}
+
 # LST and mkFit on CPU, all tracking iterations (not restricted to initialStep+highPtTripletStep), full reco
 class UpgradeWorkflow_lstmkFitAllIters(UpgradeWorkflowTracking):
     def setup__(self, step, stepName, stepDict, k, properties):
