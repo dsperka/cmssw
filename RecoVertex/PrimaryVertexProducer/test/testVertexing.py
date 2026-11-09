@@ -157,9 +157,10 @@ elif args.mode == "Old":
         process.offlinePrimaryVertices = offlinePrimaryVertices
         process.offlinePrimaryVertices.TkClusParameters.TkDAClusParameters.runInBlocks = cms.bool(False)
         if args.bs:
-            # only the beam-spot-constrained collection, under the default label so that the DQM folders keep their names
+            # only the standard beam-spot-constrained collection (the "WithBS" one of the default configuration:
+            # legacy AdaptiveVertexFitter), under the default label so that the DQM folders keep their names
             process.offlinePrimaryVertices.vertexCollections = cms.VPSet(cms.PSet(label=cms.string(""),
-                algorithm=cms.string("WeightedMeanFitter"), chi2cutoff=cms.double(2.5), minNdof=cms.double(0.0),
+                algorithm=cms.string("AdaptiveVertexFitter"), chi2cutoff=cms.double(2.5), minNdof=cms.double(2.0),
                 useBeamConstraint=cms.bool(True), maxDistanceToBeam=cms.double(1.0)))
         process.vertexing_task = cms.EndPath(process.offlinePrimaryVertices)
         process.schedule = cms.Schedule(process.vertexing_task)
