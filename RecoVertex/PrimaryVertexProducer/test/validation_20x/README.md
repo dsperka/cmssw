@@ -51,7 +51,7 @@ python3 summarize_dqm.py DQM_V0001_R000000001__Global__CMSSW_X_Y_Z__RECO.root
 ```
 `run_validation.sh` runs three steps in the current directory:
 1. `reco_cfg_template.py`: the PR's reconstruction config adapted to D128 (era `Phase2C26I13M9`, `GeometryExtendedRun4D128Reco`),
-   with the GNN modifier on, plus the C++ in-blocks and Alpaka chains. Writes the FEVT file (about 170 MB per event: 34 GB for 200 events).
+   with the GNN modifier on, plus the C++ in-blocks and Alpaka chains. Writes the FEVT file with a slim event content (only what the validation reads, about 66 MB per event; the full `FEVTDEBUGHLT` content is 170 MB per event; the slim file gives the same validation histograms and the job runs about 1.7 times faster with 6 threads, see the comment in the template).
 2. `mtdValidation_6way_cfg.py`: the PR's `mtdValidation_3way_cfg.py` extended by two modules for the new collections.
 3. `mtdHarvesting_6way_cfg.py`.
 The first argument can be a local path, a `/store/...` LFN or a `root://` URL. Third argument: `cpu` (default) or `gpu-nvidia`.
@@ -102,6 +102,23 @@ What it shows:
 - Both in-blocks versions have more fake and split vertices than the 3D and 4D DA, and fewer tracks left in no vertex (0.055 against 0.068 and 0.100).
 - The GNN is below the DA variants on real vertices and purity on this sample (D128, PU150). 42 of its 154 vertices per event fail the ndof cut (200 events: 154.4 reco, 112.6 pass).
   The PR targets D121 PU200, and the model may be trained for that.
+
+## Results on 1000 events (ten files, CPU, serial Alpaka backend)
+Input: the first ten files of the same dataset (1000 events), Alpaka at its defaults (`mintrkweight` 0.25, `zmerge` 0.01, `uniquetrkweight` 0.8).
+The sixth series of the gallery is Alpaka with `mintrkweight` 0.4 and `zmerge` 0.02 (a tuning tried in the parameter scan; it trades 3 leading vertices for fewer fake and split vertices).
+
+| | D.A. 3D | D.A. 4D | GNN | C++ In Blocks | Alpaka CPU | Alpaka, mtw 0.4 zm 0.02 |
+|---|---|---|---|---|---|---|
+| real | 118.91 | 111.44 | 97.91 | 120.18 | 120.19 | 117.07 |
+| fake | 9.83 | 8.33 | 14.11 | 15.32 | 15.28 | 13.57 |
+| split | 8.20 | 6.24 | 12.65 | 11.98 | 11.94 | 10.17 |
+| real / (real + fake) | 0.924 | 0.930 | 0.874 | 0.887 | 0.887 | 0.896 |
+| leading vertex found (of 1000) | 959 | 938 | 884 | 949 | 949 | 946 |
+
+C++ in blocks and Alpaka agree again (the same 949 leading vertices); the legacy 3D DA finds 10 more, partly a statistical fluctuation.
+Neither the clusterizer nor the fitter alone accounts for the difference to the legacy DA (swap test on 200 events).
+Files: `results/summary_per_event_1000events.txt`, `results/DQM_6way_harvested_1000events.root`, `galleries/pv_dqm_gallery_6way_1000events.html`, `phone/six_collections_1000events.html`.
+The same job with 6 threads gives histograms identical to the single-thread job (differences < 1e-15) and a reconstruction 1.7 times faster.
 
 ## Files
 - `results/summary_per_event_200events.txt`, `results/DQM_6way_harvested_200events.root`: the numbers above and the harvested file (200 events).

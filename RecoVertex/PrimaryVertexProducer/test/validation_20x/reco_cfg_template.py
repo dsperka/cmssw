@@ -87,29 +87,30 @@ process.exe2 = cms.Path(process.unsortedOfflinePrimaryVerticesInBlocks + sum(cha
     process.tracksSoA + process.beamSpotSoA + process.vertexSoA + process.unsortedOfflinePrimaryVerticesAlpaka + sum(chainAlpaka[1:], chainAlpaka[0]))
 
 
-outputCommands = cms.untracked.vstring(list(process.FEVTDEBUGHLTEventContent.outputCommands) + [
-    'keep *_*InBlocks*_*_REVTX', 'keep *_*PrimaryVerticesAlpaka*_*_REVTX', 'keep *_tofPIDAlpaka_*_REVTX',
-    'drop *_offlinePrimaryVertices_*_RECO',
-    'drop *_offlinePrimaryVertices4D_*_RECO',
-    'drop *_offlinePrimaryVertices4DWithBS_*_RECO',
-    'drop *_offlinePrimaryVerticesWithBS_*_RECO',
-    'drop *_TriggerResults_*_RECO',
-    'drop *_trackTimeValueMapProducer_generalTracksConfigurableFlatResolutionModel_RECO',
-    'drop *_trackTimeValueMapProducer_generalTracksConfigurableFlatResolutionModelResolution_RECO',
-    'drop *_trackTimeValueMapProducer_generalTracksPerfectResolutionModel_RECO',
-    'drop *_trackTimeValueMapProducer_generalTracksPerfectResolutionModelResolution_RECO',
-    'drop *_tofPID_probK_RECO',
-    'drop *_tofPID_probP_RECO',
-    'drop *_tofPID_probPi_RECO',
-    'drop *_tofPID_sigmat0_RECO',
-    'drop *_tofPID_sigmat0safe_RECO',
-    'drop *_tofPID_t0_RECO',
-    'drop *_tofPID_t0safe_RECO',
-    'drop *_ak4CaloJetsForTrk_*_RECO',
-    'drop *_inclusiveSecondaryVertices_*_RECO',
-    'drop *_generalV0Candidates_Kshort_RECO',
-    'drop *_generalV0Candidates_Lambda_RECO',
-])
+# Slim event content: only what the MTD vertex validation reads (about 66 MB/event instead of 170 MB/event with the full
+# FEVTDEBUGHLT content, and the job runs about 1.7 times faster with 6 threads). The validation of a file written with this
+# list gives the same histograms as the one of the full content (checked on 10 events, 3191 histograms, differences < 1e-15).
+# Not droppable: TrackingParticles/TrackingVertexs (truth, 38 MB/event), GenParticles (referenced by the truth), the Gsf
+# electron products (mtdEleIsoValid resolves their references).
+outputCommands = cms.untracked.vstring(
+    'drop *',
+    'keep *_generalTracks_*_*', 'keep *_trackExtenderWithMTD_*_*', 'keep *_mtdTrackQualityMVA_*_*',
+    'keep *_mtdClusters_*_*', 'keep *_mtdRecHits_*_*', 'keep *_mtdUncalibratedRecHits_*_*', 'keep *_mtdTrackingRecHits_*_*',
+    'keep *_tofPID*_*_*', 'keep *_*rimaryVertices*_*_*', 'keep *_offlineBeamSpot_*_*', 'keep *_generatorSmeared_*_*',
+    'keep *Gsf*_*_*_*', 'keep *_electronGsfTracks*_*_*', 'keep *_gedGsfElectrons_*_*', 'keep *_gedGsfElectronCores_*_*',
+    'keep *_ecalDrivenGsfElectronsHGC_*_*', 'keep *_ecalDrivenGsfElectronCoresHGC_*_*', 'keep *_ecalDrivenGsfElectronCores_*_*',
+    'keep *_particleFlowSuperClusterECAL_*_*', 'keep *_particleFlowSuperClusterHGCal_*_*', 'keep *_particleFlowSuperClusterHGCalFromTICL_*_*',
+    'keep *_particleFlowClusterECAL_*_*', 'keep *_particleFlowClusterHGCal_*_*', 'keep *_particleFlowClusterHGCalFromTICL_*_*',
+    'keep *_hgcalMergeLayerClusters_*_*',
+    'keep recoGenParticles_*_*_*', 'keep *_genParticles_*_*', 'keep edmHepMCProduct_*_*_*', 'keep GenEventInfoProduct_*_*_*',
+    'keep *_mix_MergedTrackTruth_*', 'keep *_mix_FTLBarrel_*', 'keep *_mix_FTLEndcap_*', 'keep *_mix_MergedMtdTruth*_*',
+    'keep *_g4SimHits_FastTimerHits*_*',
+    'keep *_trackingParticleRecoTrackAsssociation_*_*', 'keep *_mtdRecoClusterToSimLayerClusterAssociation_*_*',
+    'keep *_mtdSimLayerClusterToTPAssociation_*_*',
+    'keep *_*_*_REVTX',
+    # debug SoA collections of the Alpaka and GNN chains, not read by the validation
+    'drop *_vertexSoA_*_*', 'drop *_gnnVertexProducer_*_*', 'drop *PortableHostCollection*_*_*_*',
+)
 process.FEVTDEBUGHLToutput = cms.OutputModule("PoolOutputModule",
     dataset = cms.untracked.PSet(dataTier = cms.untracked.string('GEN-SIM-RECO'), filterName = cms.untracked.string('')),
     fileName = cms.untracked.string('file:revtx_step3_alpaka.root'),
