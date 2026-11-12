@@ -13,6 +13,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
   template <alpaka::concepts::Acc TAcc>
   ALPAKA_FN_ACC __attribute__((noinline)) static void reSplitTracks(const TAcc& acc,
                                                                     TrackForVertexDeviceCollection::View tracks,
+                                                                    TrackForVertexScratchCollection::View scratch,
                                                                     VertexDeviceCollection::View vertices,
                                                                     DAInBlocksClusterParameters const& cParams,
                                                                     double& osumtkwt,
@@ -23,18 +24,18 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
     int ntry = 0;
     double threshold = 1.0;
     int nprev = vertices[blockIdx].nV();
-    split(acc, tracks, vertices, cParams, osumtkwt, beta, threshold, trackBlockSize);
+    split(acc, tracks, scratch, vertices, cParams, osumtkwt, beta, threshold, trackBlockSize);
     while (nprev != vertices[blockIdx].nV() && (ntry++ < 10)) {
-      thermalize(acc, tracks, vertices, cParams, osumtkwt, beta, cParams.delta_highT, 0.0, trackBlockSize);
+      thermalize(acc, tracks, scratch, vertices, cParams, osumtkwt, beta, cParams.delta_highT, 0.0, trackBlockSize);
       nprev = vertices[blockIdx].nV();
       merge(acc, tracks, vertices, cParams, osumtkwt, beta, trackBlockSize);
       while (nprev != vertices[blockIdx].nV()) {
         nprev = vertices[blockIdx].nV();
-        update(acc, tracks, vertices, cParams, osumtkwt, beta, 0.0, false, trackBlockSize);
+        update(acc, tracks, scratch, vertices, cParams, osumtkwt, beta, 0.0, false, trackBlockSize);
         merge(acc, tracks, vertices, cParams, osumtkwt, beta, trackBlockSize);
       }
       threshold *= 1.1;
-      split(acc, tracks, vertices, cParams, osumtkwt, beta, threshold, trackBlockSize);
+      split(acc, tracks, scratch, vertices, cParams, osumtkwt, beta, threshold, trackBlockSize);
     }
   }
 
@@ -43,6 +44,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
     template <alpaka::concepts::Acc TAcc>
     ALPAKA_FN_ACC void operator()(const TAcc& acc,
                                   TrackForVertexDeviceCollection::View tracks,
+                                  TrackForVertexScratchCollection::View scratch,
                                   VertexDeviceCollection::View vertices,
                                   DAInBlocksClusterParameters const cParams,
                                   double* beta_,
@@ -64,7 +66,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
       }
 #endif
       // And split those with tension
-      reSplitTracks(acc, tracks, vertices, cParams, osumtkwt, beta, trackBlockSize);
+      reSplitTracks(acc, tracks, scratch, vertices, cParams, osumtkwt, beta, trackBlockSize);
 #ifdef DEBUG_RECOVERTEX_PRIMARYVERTEXPRODUCER_CLUSTERIZERALGO
       if (once_per_block(acc)) {
         printf("[DAInBlocksClusterizerReSplitTracks::operator()] BlockIdx %i, end\n", blockIdx);
@@ -77,6 +79,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
 
   void DAInBlocksClusterizerAlgo::resplit_tracks(Queue& queue,
                                                  TrackForVertexDeviceCollection& deviceTrack,
+                                                 TrackForVertexScratchCollection& scratch,
                                                  VertexDeviceCollection& deviceVertex,
                                                  DAInBlocksClusterParameters const& cParams,
                                                  int32_t nBlocks,
@@ -86,6 +89,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
                         make_workdiv<Acc1D>(blocks, blockSize),
                         ReSplitTracksKernel{},
                         deviceTrack.view(),
+                        scratch.view(),
                         deviceVertex.view(),
                         cParams,
                         beta_.data(),

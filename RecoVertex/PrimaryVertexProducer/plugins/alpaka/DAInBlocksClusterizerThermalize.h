@@ -20,6 +20,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
     template <alpaka::concepts::Acc TAcc>
     ALPAKA_FN_ACC __attribute__((noinline)) inline void thermalize(const TAcc& acc,
                                                                    TrackForVertexDeviceCollection::View tracks,
+                                                                   TrackForVertexScratchCollection::View scratch,
                                                                    VertexDeviceCollection::View vertices,
                                                                    DAInBlocksClusterParameters const& cParams,
                                                                    double& osumtkwt,
@@ -59,7 +60,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
                  niter);
         }
 #endif
-        update(acc, tracks, vertices, cParams, osumtkwt, beta, rho0, false, trackBlockSize);
+        update(acc, tracks, scratch, vertices, cParams, osumtkwt, beta, rho0, false, trackBlockSize);
         float dmax = 0.;
         for (int ivertexO = maxVerticesPerBlock * blockIdx;
              ivertexO < maxVerticesPerBlock * blockIdx + vertices[blockIdx].nV();
@@ -73,8 +74,8 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
         bool reassign = false;
         if (delta_sum_range > zrange_min) {
           for (int k = 0; k < vertices[blockIdx].nV(); k++) {
-            if (alpaka::math::abs(
-                    acc, vertices[vertices[maxVerticesPerBlock * blockIdx + k].order()].z() - z0[k]) > zrange_min) {
+            if (alpaka::math::abs(acc, vertices[vertices[maxVerticesPerBlock * blockIdx + k].order()].z() - z0[k]) >
+                zrange_min) {
               reassign = true;
               break;
             }
@@ -103,7 +104,6 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
           alpaka::syncBlockThreads(acc);
         }
         if (dmax < delta_max) {
-
 #ifdef DEBUG_RECOVERTEX_PRIMARYVERTEXPRODUCER_CLUSTERIZERALGO
           if (once_per_block(acc)) {
             printf(

@@ -7,6 +7,7 @@
 
 #include "DataFormats/VertexSoA/interface/alpaka/VertexDeviceCollection.h"
 #include "DataFormats/VertexSoA/interface/alpaka/TrackForVertexDeviceCollection.h"
+#include "TrackForVertexScratch.h"
 
 //#define DEBUG_RECOVERTEX_PRIMARYVERTEXPRODUCER_CLUSTERIZERALGO 1
 
@@ -40,6 +41,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
 
     void clusterize(Queue& queue,
                     TrackForVertexDeviceCollection& inputTracks,
+                    TrackForVertexScratchCollection& scratch,
                     VertexDeviceCollection& deviceVertex,
                     DAInBlocksClusterParameters const& cParams,
                     int32_t nBlocks,
@@ -47,6 +49,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
 
     void resplit_tracks(Queue& queue,
                         TrackForVertexDeviceCollection& inputTracks,
+                        TrackForVertexScratchCollection& scratch,
                         VertexDeviceCollection& deviceVertex,
                         DAInBlocksClusterParameters const& cParams,
                         int32_t nBlocks,
@@ -54,6 +57,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
 
     void reject_outliers(Queue& queue,
                          TrackForVertexDeviceCollection& inputTracks,
+                         TrackForVertexScratchCollection& scratch,
                          VertexDeviceCollection& deviceVertex,
                          DAInBlocksClusterParameters const& cParams,
                          int32_t nBlocks,

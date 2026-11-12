@@ -7,10 +7,6 @@
 #include "DataFormats/SoATemplate/interface/SoALayout.h"
 
 namespace reco {
-  // Capacity of the per-track vertex vectors in TrackForVertexSoA (maximum number of vertices, in total, that a track can be compared against)
-  constexpr int maxTotalVertexForDeterministicAnnealing = 1024;
-
-  using TrackToVertex = Eigen::Vector<float, maxTotalVertexForDeterministicAnnealing>;
   GENERATE_SOA_LAYOUT(TrackForVertexSoALayout,
                       // columns: one value per element
                       SOA_COLUMN(float, dxy2),
@@ -44,14 +40,8 @@ namespace reco {
                       SOA_COLUMN(float, py),
                       SOA_COLUMN(float, pz),
 
-                      SOA_COLUMN(float, aux1),
-                      SOA_COLUMN(float, aux2),
-
-                      // Track-vertex association
-                      SOA_EIGEN_COLUMN(TrackToVertex, vert_sw),
-                      SOA_EIGEN_COLUMN(TrackToVertex, vert_se),
-                      SOA_EIGEN_COLUMN(TrackToVertex, vert_swz),
-                      SOA_EIGEN_COLUMN(TrackToVertex, vert_swE),
+                      // The per-track scratch of the clusterizer (aux1, aux2 and the track-vertex matrices) is not part of
+                      // this layout: it lives in a device-only collection, see TrackForVertexScratch.h in the plugin
 
                       // scalars: one value for the whole structure
                       SOA_SCALAR(int32_t, nT),

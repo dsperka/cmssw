@@ -120,6 +120,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
     template <alpaka::concepts::Acc TAcc>
     ALPAKA_FN_ACC __attribute__((noinline)) inline void update(const TAcc& acc,
                                                                TrackForVertexDeviceCollection::View tracks,
+                                                               TrackForVertexScratchCollection::View scratch,
                                                                VertexDeviceCollection::View vertices,
                                                                DAInBlocksClusterParameters const& cParams,
                                                                double& osumtkwt,
@@ -158,15 +159,15 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
             double vert_exparg = botrack_dz2 * (tracks[itrack].z() - vertices[ivertex].z()) *
                                  (tracks[itrack].z() - vertices[ivertex].z());  // -beta*(z_t-z_v)/dz^2
             double vert_exp = alpaka::math::exp(acc, vert_exparg);              // e^{-beta*(z_t-z_v)/dz^2}
-            tracks[itrack].vert_se()[ivertex] =
+            scratch[itrack].vert_se()[ivertex] =
                 vert_exp * sumw;  // From partition of track to contribution of track to vertex partition
             double w = vertices[ivertex].rho() * vert_exp * sumw * tracks[itrack].oneoverdz2();
-            tracks[itrack].vert_sw()[ivertex] = w;
-            tracks[itrack].vert_swz()[ivertex] = w * tracks[itrack].z();
+            scratch[itrack].vert_sw()[ivertex] = w;
+            scratch[itrack].vert_swz()[ivertex] = w * tracks[itrack].z();
             if (updateTc) {
-              tracks[itrack].vert_swE()[ivertex] = -w * vert_exparg / (beta);
+              scratch[itrack].vert_swE()[ivertex] = -w * vert_exparg / (beta);
             } else {
-              tracks[itrack].vert_swE()[ivertex] = 0;
+              scratch[itrack].vert_swE()[ivertex] = 0;
             }
           }  //end vertex for
         }  //end if
@@ -182,10 +183,10 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
         float swE = 0.;
         for (int itrack = blockIdx * trackBlockSize; itrack < (blockIdx + 1) * trackBlockSize; itrack++) {
           if ((ivertexO >= tracks[itrack].kmin()) && (ivertexO < tracks[itrack].kmax())) {
-            se += tracks[itrack].vert_se()[ivertex];
-            sw += tracks[itrack].vert_sw()[ivertex];
-            swz += tracks[itrack].vert_swz()[ivertex];
-            swE += tracks[itrack].vert_swE()[ivertex];
+            se += scratch[itrack].vert_se()[ivertex];
+            sw += scratch[itrack].vert_sw()[ivertex];
+            swz += scratch[itrack].vert_swz()[ivertex];
+            swE += scratch[itrack].vert_swE()[ivertex];
           }
         }
         if (sw > 0) {

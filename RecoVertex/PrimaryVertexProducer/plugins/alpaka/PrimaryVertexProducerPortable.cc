@@ -1,4 +1,5 @@
 #include "DataFormats/VertexSoA/interface/alpaka/VertexDeviceCollection.h"
+#include "TrackForVertexScratch.h"
 #include "DataFormats/BeamSpot/interface/alpaka/BeamSpotDevice.h"
 #include "FWCore/ParameterSet/interface/ConfigurationDescriptions.h"
 #include "FWCore/ParameterSet/interface/ParameterSet.h"
@@ -75,6 +76,9 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
                                         : 1;  // If all fit within a block, no need to split
       // Now the device collections we still need
       TrackForVertexDeviceCollection tracksInBlocks(iEvent.queue(), nBlocks * blockSize_);  // As high as needed
+      TrackForVertexScratchCollection scratch(iEvent.queue(),
+                                              nBlocks * blockSize_);  // device-only, not put in the event
+      scratch.zeroInitialise(iEvent.queue());
       VertexDeviceCollection deviceVertex(
           iEvent.queue(), 1024);  // Hard capped to 1024, though we might want to restrict it for low PU cases
 
@@ -85,11 +89,12 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
       // Need to have the blocks created before launching the next step
       //// Then run the clusterizer per blocks
       DAInBlocksClusterizerAlgo clusterizerKernel_{iEvent.queue(), blockSize_};
-      clusterizerKernel_.clusterize(iEvent.queue(), tracksInBlocks, deviceVertex, clusterParams_, nBlocks, blockSize_);
+      clusterizerKernel_.clusterize(
+          iEvent.queue(), tracksInBlocks, scratch, deviceVertex, clusterParams_, nBlocks, blockSize_);
       clusterizerKernel_.resplit_tracks(
-          iEvent.queue(), tracksInBlocks, deviceVertex, clusterParams_, nBlocks, blockSize_);
+          iEvent.queue(), tracksInBlocks, scratch, deviceVertex, clusterParams_, nBlocks, blockSize_);
       clusterizerKernel_.reject_outliers(
-          iEvent.queue(), tracksInBlocks, deviceVertex, clusterParams_, nBlocks, blockSize_);
+          iEvent.queue(), tracksInBlocks, scratch, deviceVertex, clusterParams_, nBlocks, blockSize_);
       // Need to have all vertex before arbitrating and deciding what we keep
       clusterizerKernel_.arbitrate(iEvent.queue(), tracksInBlocks, deviceVertex, clusterParams_, nBlocks, blockSize_);
       //// And then fit

@@ -59,8 +59,6 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
             trackInBlocks[newIndex].sum_Z() = 0.;
             trackInBlocks[newIndex].kmin() = 0;
             trackInBlocks[newIndex].kmax() = 0;
-            trackInBlocks[newIndex].aux1() = 0.;
-            trackInBlocks[newIndex].aux2() = 0.;
             trackInBlocks[newIndex].isGood() = false;
             continue;
           }
@@ -92,8 +90,6 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
           trackInBlocks[newIndex].sum_Z() = 0.;
           trackInBlocks[newIndex].kmin() = inputTracks[oldIndex].kmin();
           trackInBlocks[newIndex].kmax() = inputTracks[oldIndex].kmax();
-          trackInBlocks[newIndex].aux1() = inputTracks[oldIndex].aux1();
-          trackInBlocks[newIndex].aux2() = inputTracks[oldIndex].aux2();
           trackInBlocks[newIndex].isGood() = inputTracks[oldIndex].isGood();
         }  // iblock for
       }  // iNewTrack for

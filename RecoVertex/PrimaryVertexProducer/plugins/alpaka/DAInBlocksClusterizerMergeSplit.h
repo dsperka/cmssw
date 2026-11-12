@@ -156,6 +156,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
     template <alpaka::concepts::Acc TAcc>
     ALPAKA_FN_ACC __attribute__((noinline)) inline void split(const TAcc& acc,
                                                               TrackForVertexDeviceCollection::View tracks,
+                                                              TrackForVertexScratchCollection::View scratch,
                                                               VertexDeviceCollection::View vertices,
                                                               DAInBlocksClusterParameters const& cParams,
                                                               double& osumtkwt,
@@ -164,7 +165,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
                                                               int trackBlockSize) {
       int blockIdx = alpaka::getIdx<alpaka::Grid, alpaka::Blocks>(acc)[0u];
       int maxVerticesPerBlock = (int)1024 / alpaka::getWorkDiv<alpaka::Grid, alpaka::Blocks>(acc)[0u];
-      update(acc, tracks, vertices, cParams, osumtkwt, beta, 0.0, true, trackBlockSize);
+      update(acc, tracks, scratch, vertices, cParams, osumtkwt, beta, 0.0, true, trackBlockSize);
       double epsilon = 1e-3;
       int nprev = vertices[blockIdx].nV();
       // Set critical T for all vertices

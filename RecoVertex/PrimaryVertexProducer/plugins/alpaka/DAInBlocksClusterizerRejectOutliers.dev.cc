@@ -13,6 +13,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
   template <alpaka::concepts::Acc TAcc>
   ALPAKA_FN_ACC __attribute__((noinline)) static void rejectOutliers(const TAcc& acc,
                                                                      TrackForVertexDeviceCollection::View tracks,
+                                                                     TrackForVertexScratchCollection::View scratch,
                                                                      VertexDeviceCollection::View vertices,
                                                                      DAInBlocksClusterParameters const& cParams,
                                                                      double& osumtkwt,
@@ -24,15 +25,15 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
     if (cParams.dzCutOff > 0) {
       rho0 = vertices[blockIdx].nV() > 1 ? 1. / vertices[blockIdx].nV() : 1.;
       for (int rhoindex = 0; rhoindex < 5; rhoindex++) {
-        update(acc, tracks, vertices, cParams, osumtkwt, beta, rhoindex * rho0 / 5., false, trackBlockSize);
+        update(acc, tracks, scratch, vertices, cParams, osumtkwt, beta, rhoindex * rho0 / 5., false, trackBlockSize);
       }
     }  // end if
-    thermalize(acc, tracks, vertices, cParams, osumtkwt, beta, cParams.delta_lowT, rho0, trackBlockSize);
+    thermalize(acc, tracks, scratch, vertices, cParams, osumtkwt, beta, cParams.delta_lowT, rho0, trackBlockSize);
     int nprev = vertices[blockIdx].nV();
     merge(acc, tracks, vertices, cParams, osumtkwt, beta, trackBlockSize);
     while (nprev != vertices[blockIdx].nV()) {
       set_vtx_range(acc, tracks, vertices, cParams, osumtkwt, beta, trackBlockSize);
-      update(acc, tracks, vertices, cParams, osumtkwt, beta, rho0, false, trackBlockSize);
+      update(acc, tracks, scratch, vertices, cParams, osumtkwt, beta, rho0, false, trackBlockSize);
       nprev = vertices[blockIdx].nV();
       merge(acc, tracks, vertices, cParams, osumtkwt, beta, trackBlockSize);
     }
@@ -42,13 +43,13 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
         beta = alpaka::math::min(acc, beta / cParams.coolingFactor, 1. / cParams.Tpurge);
       }
       alpaka::syncBlockThreads(acc);
-      thermalize(acc, tracks, vertices, cParams, osumtkwt, beta, cParams.delta_lowT, rho0, trackBlockSize);
+      thermalize(acc, tracks, scratch, vertices, cParams, osumtkwt, beta, cParams.delta_lowT, rho0, trackBlockSize);
     }
     alpaka::syncBlockThreads(acc);
     nprev = vertices[blockIdx].nV();
     purge(acc, tracks, vertices, cParams, osumtkwt, beta, rho0, trackBlockSize);
     while (nprev != vertices[blockIdx].nV()) {
-      thermalize(acc, tracks, vertices, cParams, osumtkwt, beta, cParams.delta_lowT, rho0, trackBlockSize);
+      thermalize(acc, tracks, scratch, vertices, cParams, osumtkwt, beta, cParams.delta_lowT, rho0, trackBlockSize);
       nprev = vertices[blockIdx].nV();
       purge(acc, tracks, vertices, cParams, osumtkwt, beta, rho0, trackBlockSize);
       alpaka::syncBlockThreads(acc);
@@ -59,7 +60,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
         beta = alpaka::math::min(acc, beta / cParams.coolingFactor, 1. / cParams.Tstop);
       }
       alpaka::syncBlockThreads(acc);
-      thermalize(acc, tracks, vertices, cParams, osumtkwt, beta, cParams.delta_lowT, rho0, trackBlockSize);
+      thermalize(acc, tracks, scratch, vertices, cParams, osumtkwt, beta, cParams.delta_lowT, rho0, trackBlockSize);
     }
     alpaka::syncBlockThreads(acc);
     // The last track to vertex assignment!
@@ -71,6 +72,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
     template <alpaka::concepts::Acc TAcc>
     ALPAKA_FN_ACC void operator()(const TAcc& acc,
                                   TrackForVertexDeviceCollection::View tracks,
+                                  TrackForVertexScratchCollection::View scratch,
                                   VertexDeviceCollection::View vertices,
                                   DAInBlocksClusterParameters const cParams,
                                   double* beta_,
@@ -94,7 +96,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
       }
 #endif
       // After splitting we might get some candidates that are very low quality/have very far away tracks
-      rejectOutliers(acc, tracks, vertices, cParams, osumtkwt, beta, trackBlockSize);
+      rejectOutliers(acc, tracks, scratch, vertices, cParams, osumtkwt, beta, trackBlockSize);
 #ifdef DEBUG_RECOVERTEX_PRIMARYVERTEXPRODUCER_CLUSTERIZERALGO
       if (once_per_block(acc)) {
         printf("[DAInBlocksClusterizerAlgoRejectOutliers::operator()] End outlier rejection for block %i\n", blockIdx);
@@ -107,6 +109,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
 
   void DAInBlocksClusterizerAlgo::reject_outliers(Queue& queue,
                                                   TrackForVertexDeviceCollection& deviceTrack,
+                                                  TrackForVertexScratchCollection& scratch,
                                                   VertexDeviceCollection& deviceVertex,
                                                   DAInBlocksClusterParameters const& cParams,
                                                   int32_t nBlocks,
@@ -116,6 +119,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
                         make_workdiv<Acc1D>(blocks, blockSize),
                         RejectOutliersKernel{},
                         deviceTrack.view(),
+                        scratch.view(),
                         deviceVertex.view(),
                         cParams,
                         beta_.data(),

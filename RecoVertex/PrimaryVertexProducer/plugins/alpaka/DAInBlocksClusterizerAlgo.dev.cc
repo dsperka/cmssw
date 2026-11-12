@@ -51,6 +51,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
   template <alpaka::concepts::Acc TAcc>
   ALPAKA_FN_ACC static void getBeta0(const TAcc& acc,
                                      TrackForVertexDeviceCollection::View tracks,
+                                     TrackForVertexScratchCollection::View scratch,
                                      VertexDeviceCollection::View vertices,
                                      DAInBlocksClusterParameters const& cParams,
                                      double& beta,
@@ -62,8 +63,8 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
       int itrack = itrackO + blockIdx * trackBlockSize;
       if (not(tracks[itrack].isGood()))
         continue;
-      tracks[itrack].aux1() = tracks[itrack].weight() * tracks[itrack].oneoverdz2();
-      tracks[itrack].aux2() = tracks[itrack].weight() * tracks[itrack].oneoverdz2() * tracks[itrack].z();
+      scratch[itrack].aux1() = tracks[itrack].weight() * tracks[itrack].oneoverdz2();
+      scratch[itrack].aux2() = tracks[itrack].weight() * tracks[itrack].oneoverdz2() * tracks[itrack].z();
     }
     // Initial vertex position
     alpaka::syncBlockThreads(acc);
@@ -78,8 +79,8 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
       int itrack = itrackO + blockIdx * trackBlockSize;
       if (not(tracks[itrack].isGood()))
         continue;
-      alpaka::atomicAdd(acc, &wnew, tracks[itrack].aux1(), alpaka::hierarchy::Threads{});
-      alpaka::atomicAdd(acc, &znew, tracks[itrack].aux2(), alpaka::hierarchy::Threads{});
+      alpaka::atomicAdd(acc, &wnew, scratch[itrack].aux1(), alpaka::hierarchy::Threads{});
+      alpaka::atomicAdd(acc, &znew, scratch[itrack].aux2(), alpaka::hierarchy::Threads{});
     }
     alpaka::syncBlockThreads(acc);
     if (once_per_block(acc)) {
@@ -92,10 +93,10 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
       int itrack = itrackO + blockIdx * trackBlockSize;
       if (not(tracks[itrack].isGood()))
         continue;
-      tracks[itrack].aux2() =
-          tracks[itrack].aux1() * (vertices[maxVerticesPerBlock * blockIdx].z() - tracks[itrack].z()) *
+      scratch[itrack].aux2() =
+          scratch[itrack].aux1() * (vertices[maxVerticesPerBlock * blockIdx].z() - tracks[itrack].z()) *
           (vertices[maxVerticesPerBlock * blockIdx].z() - tracks[itrack].z()) * tracks[itrack].oneoverdz2();
-      alpaka::atomicAdd(acc, &znew, tracks[itrack].aux2(), alpaka::hierarchy::Threads{});
+      alpaka::atomicAdd(acc, &znew, scratch[itrack].aux2(), alpaka::hierarchy::Threads{});
     }
     alpaka::syncBlockThreads(acc);
     if (once_per_block(acc)) {
@@ -116,6 +117,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
   template <alpaka::concepts::Acc TAcc>
   ALPAKA_FN_ACC static void coolingWhileSplitting(const TAcc& acc,
                                                   TrackForVertexDeviceCollection::View tracks,
+                                                  TrackForVertexScratchCollection::View scratch,
                                                   VertexDeviceCollection::View vertices,
                                                   DAInBlocksClusterParameters const& cParams,
                                                   double& osumtkwt,
@@ -136,24 +138,25 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
       while (nprev != vertices[blockIdx].nV()) {
         // If we are here, we merged before, keep merging until stable
         nprev = vertices[blockIdx].nV();
-        update(acc, tracks, vertices, cParams, osumtkwt, beta, 0.0, false, trackBlockSize);
+        update(acc, tracks, scratch, vertices, cParams, osumtkwt, beta, 0.0, false, trackBlockSize);
         merge(acc, tracks, vertices, cParams, osumtkwt, beta, trackBlockSize);
       }  // end while after merging
-      split(acc, tracks, vertices, cParams, osumtkwt, beta, 1.0, trackBlockSize);
+      split(acc, tracks, scratch, vertices, cParams, osumtkwt, beta, 1.0, trackBlockSize);
       if (once_per_block(acc)) {
         // Cool down
         beta = beta / cParams.coolingFactor;
       }
       alpaka::syncBlockThreads(acc);
-      thermalize(acc, tracks, vertices, cParams, osumtkwt, beta, cParams.delta_highT, 0.0, trackBlockSize);
+      thermalize(acc, tracks, scratch, vertices, cParams, osumtkwt, beta, cParams.delta_highT, 0.0, trackBlockSize);
     }
     set_vtx_range(acc, tracks, vertices, cParams, osumtkwt, beta, trackBlockSize);
-    update(acc, tracks, vertices, cParams, osumtkwt, beta, 0.0, false, trackBlockSize);
+    update(acc, tracks, scratch, vertices, cParams, osumtkwt, beta, 0.0, false, trackBlockSize);
   }  // end coolingWhileSplitting
 
   template <alpaka::concepts::Acc TAcc>
   ALPAKA_FN_ACC static void reMergeTracks(const TAcc& acc,
                                           TrackForVertexDeviceCollection::View tracks,
+                                          TrackForVertexScratchCollection::View scratch,
                                           VertexDeviceCollection::View vertices,
                                           DAInBlocksClusterParameters const& cParams,
                                           double& osumtkwt,
@@ -166,7 +169,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
     while (nprev != vertices[blockIdx].nV()) {
       // Keep merging until stable
       set_vtx_range(acc, tracks, vertices, cParams, osumtkwt, beta, trackBlockSize);
-      update(acc, tracks, vertices, cParams, osumtkwt, beta, 0.0, false, trackBlockSize);
+      update(acc, tracks, scratch, vertices, cParams, osumtkwt, beta, 0.0, false, trackBlockSize);
       nprev = vertices[blockIdx].nV();
       merge(acc, tracks, vertices, cParams, osumtkwt, beta, trackBlockSize);
     }  // end while
@@ -177,6 +180,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
     template <alpaka::concepts::Acc TAcc>
     ALPAKA_FN_ACC void operator()(const TAcc& acc,
                                   TrackForVertexDeviceCollection::View tracks,
+                                  TrackForVertexScratchCollection::View scratch,
                                   VertexDeviceCollection::View vertices,
                                   DAInBlocksClusterParameters const cParams,
                                   double* beta_,
@@ -232,7 +236,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
 #endif
       alpaka::syncBlockThreads(acc);
       // First estimation of critical temperature
-      getBeta0(acc, tracks, vertices, cParams, beta, trackBlockSize);
+      getBeta0(acc, tracks, scratch, vertices, cParams, beta, trackBlockSize);
       alpaka::syncBlockThreads(acc);
 #ifdef DEBUG_RECOVERTEX_PRIMARYVERTEXPRODUCER_CLUSTERIZERALGO
       if (once_per_block(acc)) {
@@ -243,7 +247,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
       }
 #endif
       // Cool down to betamax with rho = 0.0 (no regularization term)
-      thermalize(acc, tracks, vertices, cParams, osumtkwt, beta, cParams.delta_highT, 0.0, trackBlockSize);
+      thermalize(acc, tracks, scratch, vertices, cParams, osumtkwt, beta, cParams.delta_highT, 0.0, trackBlockSize);
 #ifdef DEBUG_RECOVERTEX_PRIMARYVERTEXPRODUCER_CLUSTERIZERALGO
       if (once_per_block(acc)) {
         printf("[DAInBlocksClusterizerAlgo::operator()] BlockIdx %i, first thermalization ended\n", blockIdx);
@@ -251,7 +255,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
       }
 #endif
       // Now the cooling loop
-      coolingWhileSplitting(acc, tracks, vertices, cParams, osumtkwt, beta, trackBlockSize);
+      coolingWhileSplitting(acc, tracks, scratch, vertices, cParams, osumtkwt, beta, trackBlockSize);
 #ifdef DEBUG_RECOVERTEX_PRIMARYVERTEXPRODUCER_CLUSTERIZERALGO
       if (once_per_block(acc)) {
         printf("[DAInBlocksClusterizerAlgo::operator()] BlockIdx %i, cooling ended, T at stop beta=%1.8f\n",
@@ -264,7 +268,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
       }
 #endif
       // After cooling, merge closeby vertices
-      reMergeTracks(acc, tracks, vertices, cParams, osumtkwt, beta, trackBlockSize);
+      reMergeTracks(acc, tracks, scratch, vertices, cParams, osumtkwt, beta, trackBlockSize);
 #ifdef DEBUG_RECOVERTEX_PRIMARYVERTEXPRODUCER_CLUSTERIZERALGO
       if (once_per_block(acc)) {
         printf("[DAInBlocksClusterizerAlgo::operator()] BlockIdx %i, merge, last merging step done\n", blockIdx);
@@ -293,6 +297,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
 
   void DAInBlocksClusterizerAlgo::clusterize(Queue& queue,
                                              TrackForVertexDeviceCollection& deviceTrack,
+                                             TrackForVertexScratchCollection& scratch,
                                              VertexDeviceCollection& deviceVertex,
                                              DAInBlocksClusterParameters const& cParams,
                                              int32_t nBlocks,
@@ -301,6 +306,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
                         make_workdiv<Acc1D>(nBlocks, 64),
                         DAInBlocksClusterizerKernel{},
                         deviceTrack.view(),
+                        scratch.view(),
                         deviceVertex.view(),
                         cParams,
                         beta_.data(),
