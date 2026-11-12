@@ -22,6 +22,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
                                                               TrackForVertexDeviceCollection::View tracks,
                                                               TrackForVertexScratchCollection::View scratch,
                                                               VertexDeviceCollection::View vertices,
+                                                              VertexScratchCollection::View vertexScratch,
                                                               DAInBlocksClusterParameters const& cParams,
                                                               double& osumtkwt,
                                                               double& beta,
@@ -41,7 +42,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
         int ivertexO = maxVerticesPerBlock * blockIdx + ivertexB;
         int ivertex = vertices[ivertexO].order();
         int ivertexnext = vertices[ivertexO + 1].order();
-        vertices[ivertex].aux1() = alpaka::math::abs(acc, vertices[ivertex].z() - vertices[ivertexnext].z());
+        vertexScratch[ivertex].aux1() = alpaka::math::abs(acc, vertices[ivertex].z() - vertices[ivertexnext].z());
       }
       alpaka::syncBlockThreads(acc);
       // Sorter things
@@ -56,8 +57,8 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
              ivertexO < maxVerticesPerBlock * blockIdx + vertices[blockIdx].nV() - 1;
              ivertexO++) {
           int ivertex = vertices[ivertexO].order();
-          if (vertices[ivertex].aux1() < cParams.zmerge) {  // i.e., if we are to split the vertex
-            critical_dist[ncritical] = alpaka::math::abs(acc, vertices[ivertex].aux1());
+          if (vertexScratch[ivertex].aux1() < cParams.zmerge) {  // i.e., if we are to split the vertex
+            critical_dist[ncritical] = alpaka::math::abs(acc, vertexScratch[ivertex].aux1());
             critical_index[ncritical] = ivertexO;
             ncritical++;
             if (ncritical > 128)
@@ -110,16 +111,16 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
 
         if (once_per_block(acc)) {
           vertices[ivertex].isGood() = false;  // Not deleting all the info, just disable it!
-          double rho = vertices[ivertex].rho() + vertices[ivertexnext].rho();
+          double rho = vertexScratch[ivertex].rho() + vertexScratch[ivertexnext].rho();
           if (rho > 1.e-40) {
-            vertices[ivertexnext].z() = (vertices[ivertex].rho() * vertices[ivertex].z() +
-                                         vertices[ivertexnext].rho() * vertices[ivertexnext].z()) /
+            vertices[ivertexnext].z() = (vertexScratch[ivertex].rho() * vertices[ivertex].z() +
+                                         vertexScratch[ivertexnext].rho() * vertices[ivertexnext].z()) /
                                         rho;
           } else {
             vertices[ivertexnext].z() = 0.5 * (vertices[ivertex].z() + vertices[ivertexnext].z());
           }
-          vertices[ivertexnext].rho() = rho;
-          vertices[ivertexnext].sw() += vertices[ivertex].sw();
+          vertexScratch[ivertexnext].rho() = rho;
+          vertexScratch[ivertexnext].sw() += vertexScratch[ivertex].sw();
           for (int ivertexOO = ivertexO; ivertexOO < maxVerticesPerBlock * blockIdx + nprev; ++ivertexOO) {
             vertices[ivertexOO].order() = vertices[ivertexOO + 1].order();
           }
@@ -130,7 +131,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
                    blockIdx,
                    ivertexnext,
                    vertices[ivertexnext].z(),
-                   vertices[ivertexnext].rho());
+                   vertexScratch[ivertexnext].rho());
           }
 #endif
         }  // end once_per_block
@@ -151,7 +152,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
         break;
       }
       alpaka::syncBlockThreads(acc);
-      set_vtx_range(acc, tracks, scratch, vertices, cParams, osumtkwt, beta, trackBlockSize);
+      set_vtx_range(acc, tracks, scratch, vertices, vertexScratch, cParams, osumtkwt, beta, trackBlockSize);
     }
 
     template <alpaka::concepts::Acc TAcc>
@@ -159,6 +160,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
                                                               TrackForVertexDeviceCollection::View tracks,
                                                               TrackForVertexScratchCollection::View scratch,
                                                               VertexDeviceCollection::View vertices,
+                                                              VertexScratchCollection::View vertexScratch,
                                                               DAInBlocksClusterParameters const& cParams,
                                                               double& osumtkwt,
                                                               double& beta,
@@ -166,15 +168,15 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
                                                               int trackBlockSize) {
       int blockIdx = alpaka::getIdx<alpaka::Grid, alpaka::Blocks>(acc)[0u];
       int maxVerticesPerBlock = (int)1024 / alpaka::getWorkDiv<alpaka::Grid, alpaka::Blocks>(acc)[0u];
-      update(acc, tracks, scratch, vertices, cParams, osumtkwt, beta, 0.0, true, trackBlockSize);
+      update(acc, tracks, scratch, vertices, vertexScratch, cParams, osumtkwt, beta, 0.0, true, trackBlockSize);
       double epsilon = 1e-3;
       int nprev = vertices[blockIdx].nV();
       // Set critical T for all vertices
       for (int ivertexB : independent_group_elements(acc, vertices[blockIdx].nV())) {
         int ivertexO = maxVerticesPerBlock * blockIdx + ivertexB;
         int ivertex = vertices[ivertexO].order();
-        double Tc = 2 * vertices[ivertex].swE() / vertices[ivertex].sw();
-        vertices[ivertex].aux1() = Tc;
+        double Tc = 2 * vertexScratch[ivertex].swE() / vertexScratch[ivertex].sw();
+        vertexScratch[ivertex].aux1() = Tc;
       }
       alpaka::syncBlockThreads(acc);
       auto& critical_temp = alpaka::declareSharedVar<float[128], __COUNTER__>(acc);
@@ -196,8 +198,8 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
              ivertexO < maxVerticesPerBlock * blockIdx + vertices[blockIdx].nV();
              ivertexO++) {
           int ivertex = vertices[ivertexO].order();
-          if (vertices[ivertex].aux1() * beta > threshold) {
-            critical_temp[ncritical] = alpaka::math::abs(acc, vertices[ivertex].aux1());
+          if (vertexScratch[ivertex].aux1() * beta > threshold) {
+            critical_temp[ncritical] = alpaka::math::abs(acc, vertexScratch[ivertex].aux1());
             critical_index[ncritical] = ivertexO;
             ncritical++;
             if (ncritical > 128)
@@ -270,7 +272,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
             }
             // Recompute split vertex quantities
             double p =
-                vertices[ivertex].rho() * tracks[itrack].weight() *
+                vertexScratch[ivertex].rho() * tracks[itrack].weight() *
                 alpaka::math::exp(acc,
                                   -(beta) * (tracks[itrack].z() - vertices[ivertex].z()) *
                                       (tracks[itrack].z() - vertices[ivertex].z()) * tracks[itrack].oneoverdz2()) /
@@ -343,8 +345,8 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
         // implementation): otherwise leave this vertex alone and go on with the next critical one
         bool& doSplit = alpaka::declareSharedVar<bool, __COUNTER__>(acc);
         if (once_per_block(acc)) {
-          const double pk1 = p1 * vertices[ivertex].rho() / (p1 + p2);
-          const double pk2 = p2 * vertices[ivertex].rho() / (p1 + p2);
+          const double pk1 = p1 * vertexScratch[ivertex].rho() / (p1 + p2);
+          const double pk2 = p2 * vertexScratch[ivertex].rho() / (p1 + p2);
           doSplit = ((z2 - z1) > epsilon) && alpaka::math::isfinite(acc, pk1) && alpaka::math::isfinite(acc, pk2);
         }
         alpaka::syncBlockThreads(acc);
@@ -364,17 +366,17 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
                   // Every thread runs the free-slot search above itself (instead of one thread publishing the result)
         // and they all read the same vertex state, so all of them take this branch together and exit consistently.
         if (once_per_block(acc)) {
-          double pk1 = p1 * vertices[ivertex].rho() / (p1 + p2);
-          double pk2 = p2 * vertices[ivertex].rho() / (p1 + p2);
+          double pk1 = p1 * vertexScratch[ivertex].rho() / (p1 + p2);
+          double pk2 = p2 * vertexScratch[ivertex].rho() / (p1 + p2);
           vertices[ivertex].z() = z2;
-          vertices[ivertex].rho() = pk2;
+          vertexScratch[ivertex].rho() = pk2;
           // Insert it into the first available slot
           vertices[nnew].z() = z1;
-          vertices[nnew].rho() = pk1;
+          vertexScratch[nnew].rho() = pk1;
           vertices[nnew].isGood() = true;
           // This is likely not needed as far as it is reset anytime we call update but better be safe in case we reenable a previously disable vertex (i.e. split in the memory where a merged one was)
-          vertices[nnew].sw() = 0.;
-          vertices[nnew].swE() = 0.;
+          vertexScratch[nnew].sw() = 0.;
+          vertexScratch[nnew].swE() = 0.;
           for (int ivnew = maxVerticesPerBlock * blockIdx + nprev; ivnew > ivertexO;
                ivnew--) {  // As we add a vertex, we update from the back downwards
             vertices[ivnew].order() = vertices[ivnew - 1].order();
@@ -388,7 +390,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
                    ivertex,
                    ivertex,
                    nnew);
-            dump(acc, beta, vertices);
+            dump(acc, beta, vertices, vertexScratch);
           }
 #endif
         }
@@ -419,6 +421,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
                                                               TrackForVertexDeviceCollection::View tracks,
                                                               TrackForVertexScratchCollection::View scratch,
                                                               VertexDeviceCollection::View vertices,
+                                                              VertexScratchCollection::View vertexScratch,
                                                               DAInBlocksClusterParameters const& cParams,
                                                               double& osumtkwt,
                                                               double& beta,
@@ -434,12 +437,12 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
       double rhoconst = rho0 * alpaka::math::exp(acc, -beta * (cParams.dzCutOff * cParams.dzCutOff));
       int nprev = vertices[blockIdx].nV();
       // Reassign
-      set_vtx_range(acc, tracks, scratch, vertices, cParams, osumtkwt, beta, trackBlockSize);
+      set_vtx_range(acc, tracks, scratch, vertices, vertexScratch, cParams, osumtkwt, beta, trackBlockSize);
       for (int ivertexB : independent_group_elements(acc, vertices[blockIdx].nV())) {
         int ivertexO = maxVerticesPerBlock * blockIdx + ivertexB;
         int ivertex = vertices[ivertexO].order();
-        vertices[ivertex].aux1() = 0;  // sum of track-vertex probabilities
-        vertices[ivertex].aux2() = 0;  // number of uniquely assigned tracks
+        vertexScratch[ivertex].aux1() = 0;  // sum of track-vertex probabilities
+        vertexScratch[ivertex].aux2() = 0;  // number of uniquely assigned tracks
       }
       alpaka::syncBlockThreads(acc);
       // Get quality of vertex in terms of #Tracks and sum of track probabilities
@@ -450,16 +453,17 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
                                 : 0.;
         for (int ivertexO = scratch[itrack].kmin(); ivertexO < scratch[itrack].kmax(); ++ivertexO) {
           int ivertex = vertices[ivertexO].order();
-          double ppcut = cParams.uniquetrkweight * vertices[ivertex].rho() / (vertices[ivertex].rho() + rhoconst);
+          double ppcut =
+              cParams.uniquetrkweight * vertexScratch[ivertex].rho() / (vertexScratch[ivertex].rho() + rhoconst);
           double track_vertex_aux1 = alpaka::math::exp(
               acc,
               -(beta)*tracks[itrack].oneoverdz2() *
                   ((tracks[itrack].z() - vertices[ivertex].z()) * (tracks[itrack].z() - vertices[ivertex].z())));
-          float p =
-              vertices[ivertex].rho() * track_vertex_aux1 * track_aux1;  // The whole track-vertex P_ij = rho_j*p_ij*p_i
-          alpaka::atomicAdd(acc, &vertices[ivertex].aux1(), p, alpaka::hierarchy::Threads{});
+          float p = vertexScratch[ivertex].rho() * track_vertex_aux1 *
+                    track_aux1;  // The whole track-vertex P_ij = rho_j*p_ij*p_i
+          alpaka::atomicAdd(acc, &vertexScratch[ivertex].aux1(), p, alpaka::hierarchy::Threads{});
           if (p > ppcut) {
-            alpaka::atomicAdd(acc, &vertices[ivertex].aux2(), 1.f, alpaka::hierarchy::Threads{});
+            alpaka::atomicAdd(acc, &vertexScratch[ivertex].aux2(), 1.f, alpaka::hierarchy::Threads{});
           }
         }
       }
@@ -475,8 +479,8 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
              ivertexO < maxVerticesPerBlock * blockIdx + (int)vertices[blockIdx].nV();
              ivertexO++) {
           int ivertex = vertices[ivertexO].order();
-          if ((vertices[ivertex].aux2() < nunique_min) && (vertices[ivertex].aux1() < sumpmin)) {
-            sumpmin = vertices[ivertex].aux1();
+          if ((vertexScratch[ivertex].aux2() < nunique_min) && (vertexScratch[ivertex].aux1() < sumpmin)) {
+            sumpmin = vertexScratch[ivertex].aux1();
             k0 = ivertexO;
           }
         }  // end vertex for
@@ -515,7 +519,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
       }  // end if
       alpaka::syncBlockThreads(acc);
       if (nprev != vertices[blockIdx].nV()) {
-        set_vtx_range(acc, tracks, scratch, vertices, cParams, osumtkwt, beta, trackBlockSize);
+        set_vtx_range(acc, tracks, scratch, vertices, vertexScratch, cParams, osumtkwt, beta, trackBlockSize);
       }
     }
 

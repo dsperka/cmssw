@@ -1,5 +1,5 @@
 #include "DataFormats/VertexSoA/interface/alpaka/VertexDeviceCollection.h"
-#include "TrackForVertexScratch.h"
+#include "DAInBlocksScratch.h"
 #include "DataFormats/BeamSpot/interface/alpaka/BeamSpotDevice.h"
 #include "FWCore/ParameterSet/interface/ConfigurationDescriptions.h"
 #include "FWCore/ParameterSet/interface/ParameterSet.h"
@@ -79,6 +79,8 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
       TrackForVertexScratchCollection scratch(iEvent.queue(),
                                               nBlocks * blockSize_);  // device-only, not put in the event
       scratch.zeroInitialise(iEvent.queue());
+      VertexScratchCollection vertexScratch(iEvent.queue(), 1024);  // device-only, same number of slots as deviceVertex
+      vertexScratch.zeroInitialise(iEvent.queue());
       VertexDeviceCollection deviceVertex(
           iEvent.queue(), 1024);  // Hard capped to 1024, though we might want to restrict it for low PU cases
 
@@ -90,14 +92,14 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
       //// Then run the clusterizer per blocks
       DAInBlocksClusterizerAlgo clusterizerKernel_{iEvent.queue(), blockSize_};
       clusterizerKernel_.clusterize(
-          iEvent.queue(), tracksInBlocks, scratch, deviceVertex, clusterParams_, nBlocks, blockSize_);
+          iEvent.queue(), tracksInBlocks, scratch, deviceVertex, vertexScratch, clusterParams_, nBlocks, blockSize_);
       clusterizerKernel_.resplit_tracks(
-          iEvent.queue(), tracksInBlocks, scratch, deviceVertex, clusterParams_, nBlocks, blockSize_);
+          iEvent.queue(), tracksInBlocks, scratch, deviceVertex, vertexScratch, clusterParams_, nBlocks, blockSize_);
       clusterizerKernel_.reject_outliers(
-          iEvent.queue(), tracksInBlocks, scratch, deviceVertex, clusterParams_, nBlocks, blockSize_);
+          iEvent.queue(), tracksInBlocks, scratch, deviceVertex, vertexScratch, clusterParams_, nBlocks, blockSize_);
       // Need to have all vertex before arbitrating and deciding what we keep
       clusterizerKernel_.arbitrate(
-          iEvent.queue(), tracksInBlocks, scratch, deviceVertex, clusterParams_, nBlocks, blockSize_);
+          iEvent.queue(), tracksInBlocks, scratch, deviceVertex, vertexScratch, clusterParams_, nBlocks, blockSize_);
       //// And then fit
       WeightedVertexFitterAlgo fitterKernel_{iEvent.queue(), fitterParams_};
       fitterKernel_.fit(iEvent.queue(), tracksInBlocks, deviceVertex, beamSpot);

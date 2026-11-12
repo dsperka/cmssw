@@ -7,7 +7,7 @@
 
 #include "DataFormats/VertexSoA/interface/alpaka/VertexDeviceCollection.h"
 #include "DataFormats/VertexSoA/interface/alpaka/TrackForVertexDeviceCollection.h"
-#include "TrackForVertexScratch.h"
+#include "DAInBlocksScratch.h"
 
 //#define DEBUG_RECOVERTEX_PRIMARYVERTEXPRODUCER_CLUSTERIZERALGO 1
 
@@ -43,6 +43,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
                     TrackForVertexDeviceCollection& inputTracks,
                     TrackForVertexScratchCollection& scratch,
                     VertexDeviceCollection& deviceVertex,
+                    VertexScratchCollection& vertexScratch,
                     DAInBlocksClusterParameters const& cParams,
                     int32_t nBlocks,
                     int32_t blockSize);  // Clusterization
@@ -51,6 +52,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
                         TrackForVertexDeviceCollection& inputTracks,
                         TrackForVertexScratchCollection& scratch,
                         VertexDeviceCollection& deviceVertex,
+                        VertexScratchCollection& vertexScratch,
                         DAInBlocksClusterParameters const& cParams,
                         int32_t nBlocks,
                         int32_t blockSize);  // Clusterization
@@ -59,6 +61,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
                          TrackForVertexDeviceCollection& inputTracks,
                          TrackForVertexScratchCollection& scratch,
                          VertexDeviceCollection& deviceVertex,
+                         VertexScratchCollection& vertexScratch,
                          DAInBlocksClusterParameters const& cParams,
                          int32_t nBlocks,
                          int32_t blockSize);  // Clusterization
@@ -66,6 +69,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
                    TrackForVertexDeviceCollection& inputTracks,
                    TrackForVertexScratchCollection& scratch,
                    VertexDeviceCollection& deviceVertex,
+                   VertexScratchCollection& vertexScratch,
                    DAInBlocksClusterParameters const& cParams,
                    int32_t nBlocks,
                    int32_t blockSize);  // Arbitration

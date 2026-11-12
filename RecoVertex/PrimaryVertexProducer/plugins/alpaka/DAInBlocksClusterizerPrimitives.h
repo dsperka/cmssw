@@ -18,7 +18,10 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
 
 #ifdef DEBUG_RECOVERTEX_PRIMARYVERTEXPRODUCER_CLUSTERIZERALGO
     template <alpaka::concepts::Acc TAcc>
-    ALPAKA_FN_ACC inline void dump(const TAcc& acc, double& beta, VertexDeviceCollection::View vertices) {
+    ALPAKA_FN_ACC inline void dump(const TAcc& acc,
+                                   double& beta,
+                                   VertexDeviceCollection::View vertices,
+                                   VertexScratchCollection::View vertexScratch) {
       int blockIdx = alpaka::getIdx<alpaka::Grid, alpaka::Blocks>(acc)[0u];
       int maxVerticesPerBlock =
           (int)1024 / alpaka::getWorkDiv<alpaka::Grid, alpaka::Blocks>(
@@ -38,9 +41,9 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
             ivertex,
             ivertexO,
             vertices[ivertex].z(),
-            vertices[ivertex].swE(),
-            vertices[ivertex].sw(),
-            vertices[ivertex].rho());
+            vertexScratch[ivertex].swE(),
+            vertexScratch[ivertex].sw(),
+            vertexScratch[ivertex].rho());
       }
     }
 #endif  // DEBUG_RECOVERTEX_PRIMARYVERTEXPRODUCER_CLUSTERIZERALGO
@@ -50,6 +53,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
                                                                       TrackForVertexDeviceCollection::View tracks,
                                                                       TrackForVertexScratchCollection::View scratch,
                                                                       VertexDeviceCollection::View vertices,
+                                                                      VertexScratchCollection::View vertexScratch,
                                                                       DAInBlocksClusterParameters const& cParams,
                                                                       double& osumtkwt,
                                                                       double& beta,
@@ -123,6 +127,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
                                                                TrackForVertexDeviceCollection::View tracks,
                                                                TrackForVertexScratchCollection::View scratch,
                                                                VertexDeviceCollection::View vertices,
+                                                               VertexScratchCollection::View vertexScratch,
                                                                DAInBlocksClusterParameters const& cParams,
                                                                double& osumtkwt,
                                                                double& beta,
@@ -144,10 +149,10 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
           if (not(vertices[ivertex].isGood()))
             continue;
           // Z_t = sum_v pho_v * e^{-beta*(z_t-z_v)/dz^2}, partition function of the track
-          scratch[itrack].sum_Z() +=
-              vertices[ivertex].rho() * alpaka::math::exp(acc,
-                                                          botrack_dz2 * (tracks[itrack].z() - vertices[ivertex].z()) *
-                                                              (tracks[itrack].z() - vertices[ivertex].z()));
+          scratch[itrack].sum_Z() += vertexScratch[ivertex].rho() *
+                                     alpaka::math::exp(acc,
+                                                       botrack_dz2 * (tracks[itrack].z() - vertices[ivertex].z()) *
+                                                           (tracks[itrack].z() - vertices[ivertex].z()));
         }  //end vertex for
         if (not(alpaka::math::isfinite(acc, scratch[itrack].sum_Z())))
           scratch[itrack].sum_Z() = 0;
@@ -162,7 +167,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
             double vert_exp = alpaka::math::exp(acc, vert_exparg);              // e^{-beta*(z_t-z_v)/dz^2}
             scratch[itrack].vert_se()[ivertex] =
                 vert_exp * sumw;  // From partition of track to contribution of track to vertex partition
-            double w = vertices[ivertex].rho() * vert_exp * sumw * tracks[itrack].oneoverdz2();
+            double w = vertexScratch[ivertex].rho() * vert_exp * sumw * tracks[itrack].oneoverdz2();
             scratch[itrack].vert_sw()[ivertex] = w;
             scratch[itrack].vert_swz()[ivertex] = w * tracks[itrack].z();
             if (updateTc) {
@@ -192,15 +197,15 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
         }
         if (sw > 0) {
           double znew = swz / sw;
-          vertices[ivertex].aux1() = znew - vertices[ivertex].z();
+          vertexScratch[ivertex].aux1() = znew - vertices[ivertex].z();
           vertices[ivertex].z() = znew;
         } else {
-          vertices[ivertex].aux1() = 0.;
+          vertexScratch[ivertex].aux1() = 0.;
         }
-        vertices[ivertex].rho() = vertices[ivertex].rho() * se * osumtkwt;
-        vertices[ivertex].sw() = sw;
+        vertexScratch[ivertex].rho() = vertexScratch[ivertex].rho() * se * osumtkwt;
+        vertexScratch[ivertex].sw() = sw;
         if (updateTc)
-          vertices[ivertex].swE() = swE;
+          vertexScratch[ivertex].swE() = swE;
       }  // end vertex for
       alpaka::syncBlockThreads(acc);
     }  //end update

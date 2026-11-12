@@ -1,5 +1,5 @@
-#ifndef RecoVertex_PrimaryVertexProducer_plugins_alpaka_TrackForVertexScratch_h
-#define RecoVertex_PrimaryVertexProducer_plugins_alpaka_TrackForVertexScratch_h
+#ifndef RecoVertex_PrimaryVertexProducer_plugins_alpaka_DAInBlocksScratch_h
+#define RecoVertex_PrimaryVertexProducer_plugins_alpaka_DAInBlocksScratch_h
 
 #include <Eigen/Core>
 #include <Eigen/Dense>
@@ -9,9 +9,10 @@
 #include "DataFormats/SoATemplate/interface/SoALayout.h"
 #include "HeterogeneousCore/AlpakaInterface/interface/config.h"
 
-// Per-track scratch space of the DA-in-blocks clusterizer. It is only used by the clusterizer kernels, in the same order of
-// tracks as tracksInBlocks, and is neither put in the event nor copied to the host: the persistent TrackForVertexSoA
-// carries only the track quantities and the track-vertex assignment that later modules read.
+// Scratch space of the DA-in-blocks clusterizer, per track and per vertex slot. It is only used by the clusterizer kernels
+// (the track scratch has the same slots as tracksInBlocks, the vertex scratch the same as the vertex collection) and is
+// neither put in the event nor copied to the host: the persistent TrackForVertexSoA and VertexSoA carry only what the
+// fitter and the later modules read.
 namespace reco {
   // Capacity of the per-track vertex vectors (maximum number of vertices, in total, that a track can be compared against)
   constexpr int maxTotalVertexForDeterministicAnnealing = 1024;
@@ -33,10 +34,21 @@ namespace reco {
                       SOA_EIGEN_COLUMN(TrackToVertex, vert_swE))
 
   using TrackForVertexScratchSoA = TrackForVertexScratchSoALayout<>;
+
+  // Per-vertex-slot scratch, in the same slots as VertexSoA
+  GENERATE_SOA_LAYOUT(VertexScratchSoALayout,
+                      SOA_COLUMN(float, rho),  // regularisation (prior) weight of the vertex
+                      SOA_COLUMN(float, aux1),
+                      SOA_COLUMN(float, aux2),
+                      SOA_COLUMN(float, sw),
+                      SOA_COLUMN(float, swE))
+
+  using VertexScratchSoA = VertexScratchSoALayout<>;
 }  // namespace reco
 
 namespace ALPAKA_ACCELERATOR_NAMESPACE {
   using TrackForVertexScratchCollection = PortableCollection<::reco::TrackForVertexScratchSoA>;
+  using VertexScratchCollection = PortableCollection<::reco::VertexScratchSoA>;
 }  // namespace ALPAKA_ACCELERATOR_NAMESPACE
 
-#endif  // RecoVertex_PrimaryVertexProducer_plugins_alpaka_TrackForVertexScratch_h
+#endif  // RecoVertex_PrimaryVertexProducer_plugins_alpaka_DAInBlocksScratch_h

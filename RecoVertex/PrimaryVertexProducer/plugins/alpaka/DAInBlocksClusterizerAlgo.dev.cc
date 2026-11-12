@@ -15,6 +15,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
                                        TrackForVertexDeviceCollection::View tracks,
                                        TrackForVertexScratchCollection::View scratch,
                                        VertexDeviceCollection::View vertices,
+                                       VertexScratchCollection::View vertexScratch,
                                        DAInBlocksClusterParameters const& cParams,
                                        int trackBlockSize) {
     // Initialize all vertices as empty, a single vertex in each block will be initialized with all tracks associated to it
@@ -25,16 +26,16 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
              acc,
              maxVerticesPerBlock)) {  // Initialize vertices in parallel in the block. Note that a block of threads should always be restricted to oeprations within maxVerticesPerBlock*blockIdx and maxVerticesPerBlock*(blockIdx+1)-1 to avoid running conditions
       int ivertex = ivertexI + maxVerticesPerBlock * blockIdx;
-      vertices[ivertex].sw() = 0.;
-      vertices[ivertex].swE() = 0.;
+      vertexScratch[ivertex].sw() = 0.;
+      vertexScratch[ivertex].swE() = 0.;
       vertices[ivertex].z() = 0.;
-      vertices[ivertex].rho() = 0.;
+      vertexScratch[ivertex].rho() = 0.;
       vertices[ivertex].isGood() = false;
       vertices[ivertex].order() = emptyVertexOrder;
       if (ivertex ==
           maxVerticesPerBlock *
               blockIdx) {  // Set up the initial single vetex containing everything which should only happen for the first vertex
-        vertices[ivertex].rho() = 1.;
+        vertexScratch[ivertex].rho() = 1.;
         vertices[ivertex].order() = maxVerticesPerBlock * blockIdx;
         vertices[ivertex].isGood() = true;
       }
@@ -54,6 +55,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
                                      TrackForVertexDeviceCollection::View tracks,
                                      TrackForVertexScratchCollection::View scratch,
                                      VertexDeviceCollection::View vertices,
+                                     VertexScratchCollection::View vertexScratch,
                                      DAInBlocksClusterParameters const& cParams,
                                      double& beta,
                                      int trackBlockSize) {
@@ -120,6 +122,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
                                                   TrackForVertexDeviceCollection::View tracks,
                                                   TrackForVertexScratchCollection::View scratch,
                                                   VertexDeviceCollection::View vertices,
+                                                  VertexScratchCollection::View vertexScratch,
                                                   DAInBlocksClusterParameters const& cParams,
                                                   double& osumtkwt,
                                                   double& beta,
@@ -135,23 +138,33 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
       }
 #endif
       int nprev = vertices[blockIdx].nV();
-      merge(acc, tracks, scratch, vertices, cParams, osumtkwt, beta, trackBlockSize);
+      merge(acc, tracks, scratch, vertices, vertexScratch, cParams, osumtkwt, beta, trackBlockSize);
       while (nprev != vertices[blockIdx].nV()) {
         // If we are here, we merged before, keep merging until stable
         nprev = vertices[blockIdx].nV();
-        update(acc, tracks, scratch, vertices, cParams, osumtkwt, beta, 0.0, false, trackBlockSize);
-        merge(acc, tracks, scratch, vertices, cParams, osumtkwt, beta, trackBlockSize);
+        update(acc, tracks, scratch, vertices, vertexScratch, cParams, osumtkwt, beta, 0.0, false, trackBlockSize);
+        merge(acc, tracks, scratch, vertices, vertexScratch, cParams, osumtkwt, beta, trackBlockSize);
       }  // end while after merging
-      split(acc, tracks, scratch, vertices, cParams, osumtkwt, beta, 1.0, trackBlockSize);
+      split(acc, tracks, scratch, vertices, vertexScratch, cParams, osumtkwt, beta, 1.0, trackBlockSize);
       if (once_per_block(acc)) {
         // Cool down
         beta = beta / cParams.coolingFactor;
       }
       alpaka::syncBlockThreads(acc);
-      thermalize(acc, tracks, scratch, vertices, cParams, osumtkwt, beta, cParams.delta_highT, 0.0, trackBlockSize);
+      thermalize(acc,
+                 tracks,
+                 scratch,
+                 vertices,
+                 vertexScratch,
+                 cParams,
+                 osumtkwt,
+                 beta,
+                 cParams.delta_highT,
+                 0.0,
+                 trackBlockSize);
     }
-    set_vtx_range(acc, tracks, scratch, vertices, cParams, osumtkwt, beta, trackBlockSize);
-    update(acc, tracks, scratch, vertices, cParams, osumtkwt, beta, 0.0, false, trackBlockSize);
+    set_vtx_range(acc, tracks, scratch, vertices, vertexScratch, cParams, osumtkwt, beta, trackBlockSize);
+    update(acc, tracks, scratch, vertices, vertexScratch, cParams, osumtkwt, beta, 0.0, false, trackBlockSize);
   }  // end coolingWhileSplitting
 
   template <alpaka::concepts::Acc TAcc>
@@ -159,6 +172,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
                                           TrackForVertexDeviceCollection::View tracks,
                                           TrackForVertexScratchCollection::View scratch,
                                           VertexDeviceCollection::View vertices,
+                                          VertexScratchCollection::View vertexScratch,
                                           DAInBlocksClusterParameters const& cParams,
                                           double& osumtkwt,
                                           double& beta,
@@ -166,13 +180,13 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
     // After the cooling, we merge any closeby vertices
     int blockIdx = alpaka::getIdx<alpaka::Grid, alpaka::Blocks>(acc)[0u];
     int nprev = vertices[blockIdx].nV();
-    merge(acc, tracks, scratch, vertices, cParams, osumtkwt, beta, trackBlockSize);
+    merge(acc, tracks, scratch, vertices, vertexScratch, cParams, osumtkwt, beta, trackBlockSize);
     while (nprev != vertices[blockIdx].nV()) {
       // Keep merging until stable
-      set_vtx_range(acc, tracks, scratch, vertices, cParams, osumtkwt, beta, trackBlockSize);
-      update(acc, tracks, scratch, vertices, cParams, osumtkwt, beta, 0.0, false, trackBlockSize);
+      set_vtx_range(acc, tracks, scratch, vertices, vertexScratch, cParams, osumtkwt, beta, trackBlockSize);
+      update(acc, tracks, scratch, vertices, vertexScratch, cParams, osumtkwt, beta, 0.0, false, trackBlockSize);
       nprev = vertices[blockIdx].nV();
-      merge(acc, tracks, scratch, vertices, cParams, osumtkwt, beta, trackBlockSize);
+      merge(acc, tracks, scratch, vertices, vertexScratch, cParams, osumtkwt, beta, trackBlockSize);
     }  // end while
   }  // end reMergeTracks
 
@@ -183,6 +197,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
                                   TrackForVertexDeviceCollection::View tracks,
                                   TrackForVertexScratchCollection::View scratch,
                                   VertexDeviceCollection::View vertices,
+                                  VertexScratchCollection::View vertexScratch,
                                   DAInBlocksClusterParameters const cParams,
                                   double* beta_,
                                   double* osumtkwt_,
@@ -228,7 +243,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
 #endif
       alpaka::syncBlockThreads(acc);
       // In each block, initialize to a single vertex with all tracks
-      initialize(acc, tracks, scratch, vertices, cParams, trackBlockSize);
+      initialize(acc, tracks, scratch, vertices, vertexScratch, cParams, trackBlockSize);
 #ifdef DEBUG_RECOVERTEX_PRIMARYVERTEXPRODUCER_CLUSTERIZERALGO
       if (once_per_block(acc)) {
         printf("[DAInBlocksClusterizerAlgo::operator()] BlockIdx %i, vertices initialized\n", blockIdx);
@@ -237,7 +252,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
 #endif
       alpaka::syncBlockThreads(acc);
       // First estimation of critical temperature
-      getBeta0(acc, tracks, scratch, vertices, cParams, beta, trackBlockSize);
+      getBeta0(acc, tracks, scratch, vertices, vertexScratch, cParams, beta, trackBlockSize);
       alpaka::syncBlockThreads(acc);
 #ifdef DEBUG_RECOVERTEX_PRIMARYVERTEXPRODUCER_CLUSTERIZERALGO
       if (once_per_block(acc)) {
@@ -248,7 +263,17 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
       }
 #endif
       // Cool down to betamax with rho = 0.0 (no regularization term)
-      thermalize(acc, tracks, scratch, vertices, cParams, osumtkwt, beta, cParams.delta_highT, 0.0, trackBlockSize);
+      thermalize(acc,
+                 tracks,
+                 scratch,
+                 vertices,
+                 vertexScratch,
+                 cParams,
+                 osumtkwt,
+                 beta,
+                 cParams.delta_highT,
+                 0.0,
+                 trackBlockSize);
 #ifdef DEBUG_RECOVERTEX_PRIMARYVERTEXPRODUCER_CLUSTERIZERALGO
       if (once_per_block(acc)) {
         printf("[DAInBlocksClusterizerAlgo::operator()] BlockIdx %i, first thermalization ended\n", blockIdx);
@@ -256,7 +281,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
       }
 #endif
       // Now the cooling loop
-      coolingWhileSplitting(acc, tracks, scratch, vertices, cParams, osumtkwt, beta, trackBlockSize);
+      coolingWhileSplitting(acc, tracks, scratch, vertices, vertexScratch, cParams, osumtkwt, beta, trackBlockSize);
 #ifdef DEBUG_RECOVERTEX_PRIMARYVERTEXPRODUCER_CLUSTERIZERALGO
       if (once_per_block(acc)) {
         printf("[DAInBlocksClusterizerAlgo::operator()] BlockIdx %i, cooling ended, T at stop beta=%1.8f\n",
@@ -269,7 +294,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
       }
 #endif
       // After cooling, merge closeby vertices
-      reMergeTracks(acc, tracks, scratch, vertices, cParams, osumtkwt, beta, trackBlockSize);
+      reMergeTracks(acc, tracks, scratch, vertices, vertexScratch, cParams, osumtkwt, beta, trackBlockSize);
 #ifdef DEBUG_RECOVERTEX_PRIMARYVERTEXPRODUCER_CLUSTERIZERALGO
       if (once_per_block(acc)) {
         printf("[DAInBlocksClusterizerAlgo::operator()] BlockIdx %i, merge, last merging step done\n", blockIdx);
@@ -300,6 +325,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
                                              TrackForVertexDeviceCollection& deviceTrack,
                                              TrackForVertexScratchCollection& scratch,
                                              VertexDeviceCollection& deviceVertex,
+                                             VertexScratchCollection& vertexScratch,
                                              DAInBlocksClusterParameters const& cParams,
                                              int32_t nBlocks,
                                              int32_t blockSize) {
@@ -309,6 +335,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
                         deviceTrack.view(),
                         scratch.view(),
                         deviceVertex.view(),
+                        vertexScratch.view(),
                         cParams,
                         beta_.data(),
                         osumtkwt_.data(),

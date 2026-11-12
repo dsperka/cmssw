@@ -28,19 +28,15 @@ namespace reco {
       SOA_COLUMN(float, chi2),
       SOA_COLUMN(float, ndof),
       SOA_COLUMN(int, ntracks),
-      SOA_COLUMN(float, rho),
 
-      SOA_COLUMN(float, aux1),
-      SOA_COLUMN(float, aux2),
+      // The per-vertex scratch of the clusterizer (rho, aux1, aux2, sw, swE) is not part of this layout: it lives in a
+      // device-only collection, see DAInBlocksScratch.h in the plugin
 
       SOA_EIGEN_COLUMN(VertexToTrackInt, track_id),
       SOA_EIGEN_COLUMN(VertexToTrack, track_weight),
 
       SOA_COLUMN(bool, isGood),
       SOA_COLUMN(int, order),
-
-      SOA_COLUMN(float, sw),
-      SOA_COLUMN(float, swE),
 
       // Use entries for blocks
       // When running in paralell, i.e. DA in blocks, the entries in the column can be used to save the number of vertex on each block during clustering

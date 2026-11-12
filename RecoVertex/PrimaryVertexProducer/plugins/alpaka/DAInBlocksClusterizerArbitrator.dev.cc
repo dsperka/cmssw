@@ -19,6 +19,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
                                                     TrackForVertexDeviceCollection::View tracks,
                                                     TrackForVertexScratchCollection::View scratch,
                                                     VertexDeviceCollection::View vertices,
+                                                    VertexScratchCollection::View vertexScratch,
                                                     DAInBlocksClusterParameters const& cParams,
                                                     int32_t nBlocks) {
     // Multiblock vertex arbitration
@@ -35,7 +36,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
 
     for (unsigned int iv : uniform_elements(acc, maxVerticesInSoA)) {
       if (vertices[iv].isGood()) {
-        if ((vertices[iv].rho() > 10000) || (alpaka::math::abs(acc, vertices[iv].z()) > 30)) {
+        if ((vertexScratch[iv].rho() > 10000) || (alpaka::math::abs(acc, vertices[iv].z()) > 30)) {
           vertices[iv].isGood() = false;
         }
       }
@@ -62,7 +63,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
             continue;
           if (vertices[iv].isGood()) {
             z[nTrueVertex] = vertices[iv].z();
-            rho[nTrueVertex] = vertices[iv].rho();
+            rho[nTrueVertex] = vertexScratch[iv].rho();
             nTrueVertex++;
           }
         }
@@ -87,7 +88,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
     // copy sorted vertices back to the SoA. We restrict our usage to the first vertices[0].nV() entries of the SoA
     for (int ivtx : uniform_elements(acc, vertices[0].nV())) {
       vertices[ivtx].z() = z[ivtx];
-      vertices[ivtx].rho() = rho[ivtx];
+      vertexScratch[ivtx].rho() = rho[ivtx];
       vertices[ivtx].order() = orderedIndices[ivtx];
       vertices[ivtx].isGood() = true;
     }
@@ -168,7 +169,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
             acc,
             -(beta)*alpaka::math::pow(acc, tracks[itrack].z() - vertices[vertices[k].order()].z(), 2) *
                 tracks[itrack].oneoverdz2());
-        sum_Z += vertices[vertices[k].order()].rho() * v_exp;
+        sum_Z += vertexScratch[vertices[k].order()].rho() * v_exp;
       }
       double invZ = sum_Z > 1e-40 ? 1. / sum_Z : 0.0;
       // Univocally assign a track to the highest probability vertex
@@ -177,7 +178,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
             acc,
             -(beta)*alpaka::math::pow(acc, tracks[itrack].z() - vertices[vertices[k].order()].z(), 2) *
                 tracks[itrack].oneoverdz2());
-        float p = vertices[vertices[k].order()].rho() * v_exp * invZ;
+        float p = vertexScratch[vertices[k].order()].rho() * v_exp * invZ;
         if (p > p_max && p > cParams.mintrkweight) {
           // assign  track i -> vertex k (hard assignment unles we configure a non standard mintrweight_
           p_max = p;
@@ -202,6 +203,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
                                              TrackForVertexDeviceCollection::View tracks,
                                              TrackForVertexScratchCollection::View scratch,
                                              VertexDeviceCollection::View vertices,
+                                             VertexScratchCollection::View vertexScratch,
                                              DAInBlocksClusterParameters const& cParams) {
     // Per-candidate z uncertainty (inverse-variance combination of its
     // assigned tracks' oneoverdz2, i.e. 1/sigma_z^2), computed in parallel
@@ -319,6 +321,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
                                   TrackForVertexDeviceCollection::View tracks,
                                   TrackForVertexScratchCollection::View scratch,
                                   VertexDeviceCollection::View vertices,
+                                  VertexScratchCollection::View vertexScratch,
                                   DAInBlocksClusterParameters const cParams,
                                   int32_t nBlocks) const {
       // This has the core of the clusterization algorithm
@@ -327,7 +330,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
         printf("[DAInBlocksClusterizerAlgoArbitrator::operator()] Start arbitration\n");
       }
 #endif
-      resortVerticesAndAssign(acc, tracks, scratch, vertices, cParams, nBlocks);
+      resortVerticesAndAssign(acc, tracks, scratch, vertices, vertexScratch, cParams, nBlocks);
 #ifdef DEBUG_RECOVERTEX_PRIMARYVERTEXPRODUCER_ARBITRATOR
       if (once_per_block(acc)) {
         printf("[DAInBlocksClusterizerAlgoArbitrator::operator()] Vertex reassignment finished\n");
@@ -335,7 +338,8 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
       }
 #endif
       alpaka::syncBlockThreads(acc);
-      finalizeVertices(acc, tracks, scratch, vertices, cParams);  // In CUDA it used to be verticesAndClusterize
+      finalizeVertices(
+          acc, tracks, scratch, vertices, vertexScratch, cParams);  // In CUDA it used to be verticesAndClusterize
 #ifdef DEBUG_RECOVERTEX_PRIMARYVERTEXPRODUCER_ARBITRATOR
       if (once_per_block(acc)) {
         printf("[DAInBlocksClusterizerAlgoArbitrator::operator()] Vertices finalized\n");
@@ -350,6 +354,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
                                             TrackForVertexDeviceCollection& deviceTrack,
                                             TrackForVertexScratchCollection& scratch,
                                             VertexDeviceCollection& deviceVertex,
+                                            VertexScratchCollection& vertexScratch,
                                             DAInBlocksClusterParameters const& cParams,
                                             int32_t nBlocks,
                                             int32_t blockSize) {
@@ -360,6 +365,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
                         deviceTrack.view(),
                         scratch.view(),
                         deviceVertex.view(),
+                        vertexScratch.view(),
                         cParams,
                         nBlocks);
   }  // arbitraterAlgo::arbitrate

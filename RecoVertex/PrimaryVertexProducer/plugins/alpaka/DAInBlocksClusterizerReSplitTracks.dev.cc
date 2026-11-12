@@ -15,6 +15,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
                                                                     TrackForVertexDeviceCollection::View tracks,
                                                                     TrackForVertexScratchCollection::View scratch,
                                                                     VertexDeviceCollection::View vertices,
+                                                                    VertexScratchCollection::View vertexScratch,
                                                                     DAInBlocksClusterParameters const& cParams,
                                                                     double& osumtkwt,
                                                                     double& beta,
@@ -24,18 +25,28 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
     int ntry = 0;
     double threshold = 1.0;
     int nprev = vertices[blockIdx].nV();
-    split(acc, tracks, scratch, vertices, cParams, osumtkwt, beta, threshold, trackBlockSize);
+    split(acc, tracks, scratch, vertices, vertexScratch, cParams, osumtkwt, beta, threshold, trackBlockSize);
     while (nprev != vertices[blockIdx].nV() && (ntry++ < 10)) {
-      thermalize(acc, tracks, scratch, vertices, cParams, osumtkwt, beta, cParams.delta_highT, 0.0, trackBlockSize);
+      thermalize(acc,
+                 tracks,
+                 scratch,
+                 vertices,
+                 vertexScratch,
+                 cParams,
+                 osumtkwt,
+                 beta,
+                 cParams.delta_highT,
+                 0.0,
+                 trackBlockSize);
       nprev = vertices[blockIdx].nV();
-      merge(acc, tracks, scratch, vertices, cParams, osumtkwt, beta, trackBlockSize);
+      merge(acc, tracks, scratch, vertices, vertexScratch, cParams, osumtkwt, beta, trackBlockSize);
       while (nprev != vertices[blockIdx].nV()) {
         nprev = vertices[blockIdx].nV();
-        update(acc, tracks, scratch, vertices, cParams, osumtkwt, beta, 0.0, false, trackBlockSize);
-        merge(acc, tracks, scratch, vertices, cParams, osumtkwt, beta, trackBlockSize);
+        update(acc, tracks, scratch, vertices, vertexScratch, cParams, osumtkwt, beta, 0.0, false, trackBlockSize);
+        merge(acc, tracks, scratch, vertices, vertexScratch, cParams, osumtkwt, beta, trackBlockSize);
       }
       threshold *= 1.1;
-      split(acc, tracks, scratch, vertices, cParams, osumtkwt, beta, threshold, trackBlockSize);
+      split(acc, tracks, scratch, vertices, vertexScratch, cParams, osumtkwt, beta, threshold, trackBlockSize);
     }
   }
 
@@ -46,6 +57,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
                                   TrackForVertexDeviceCollection::View tracks,
                                   TrackForVertexScratchCollection::View scratch,
                                   VertexDeviceCollection::View vertices,
+                                  VertexScratchCollection::View vertexScratch,
                                   DAInBlocksClusterParameters const cParams,
                                   double* beta_,
                                   double* osumtkwt_,
@@ -66,7 +78,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
       }
 #endif
       // And split those with tension
-      reSplitTracks(acc, tracks, scratch, vertices, cParams, osumtkwt, beta, trackBlockSize);
+      reSplitTracks(acc, tracks, scratch, vertices, vertexScratch, cParams, osumtkwt, beta, trackBlockSize);
 #ifdef DEBUG_RECOVERTEX_PRIMARYVERTEXPRODUCER_CLUSTERIZERALGO
       if (once_per_block(acc)) {
         printf("[DAInBlocksClusterizerReSplitTracks::operator()] BlockIdx %i, end\n", blockIdx);
@@ -81,6 +93,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
                                                  TrackForVertexDeviceCollection& deviceTrack,
                                                  TrackForVertexScratchCollection& scratch,
                                                  VertexDeviceCollection& deviceVertex,
+                                                 VertexScratchCollection& vertexScratch,
                                                  DAInBlocksClusterParameters const& cParams,
                                                  int32_t nBlocks,
                                                  int32_t blockSize) {
@@ -91,6 +104,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
                         deviceTrack.view(),
                         scratch.view(),
                         deviceVertex.view(),
+                        vertexScratch.view(),
                         cParams,
                         beta_.data(),
                         osumtkwt_.data(),

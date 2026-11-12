@@ -22,6 +22,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
                                                                    TrackForVertexDeviceCollection::View tracks,
                                                                    TrackForVertexScratchCollection::View scratch,
                                                                    VertexDeviceCollection::View vertices,
+                                                                   VertexScratchCollection::View vertexScratch,
                                                                    DAInBlocksClusterParameters const& cParams,
                                                                    double& osumtkwt,
                                                                    double& beta,
@@ -42,7 +43,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
         delta_max = cParams.delta_lowT / alpaka::math::sqrt(acc, alpaka::math::max(acc, beta, 1.0));
       }
       int maxIterations = 1000;
-      set_vtx_range(acc, tracks, scratch, vertices, cParams, osumtkwt, beta, trackBlockSize);
+      set_vtx_range(acc, tracks, scratch, vertices, vertexScratch, cParams, osumtkwt, beta, trackBlockSize);
       alpaka::syncBlockThreads(acc);
       if (once_per_block(acc)) {
         for (int k = 0; k < vertices[blockIdx].nV(); k++)
@@ -60,14 +61,14 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
                  niter);
         }
 #endif
-        update(acc, tracks, scratch, vertices, cParams, osumtkwt, beta, rho0, false, trackBlockSize);
+        update(acc, tracks, scratch, vertices, vertexScratch, cParams, osumtkwt, beta, rho0, false, trackBlockSize);
         float dmax = 0.;
         for (int ivertexO = maxVerticesPerBlock * blockIdx;
              ivertexO < maxVerticesPerBlock * blockIdx + vertices[blockIdx].nV();
              ivertexO++) {
           int ivertex = vertices[ivertexO].order();
-          if (alpaka::math::abs(acc, vertices[ivertex].aux1()) > dmax)
-            dmax = alpaka::math::abs(acc, vertices[ivertex].aux1());
+          if (alpaka::math::abs(acc, vertexScratch[ivertex].aux1()) > dmax)
+            dmax = alpaka::math::abs(acc, vertexScratch[ivertex].aux1());
         }
         delta_sum_range += dmax;
         // If a vertex moved too much since the last assignment we reassign (same criterion as the C++ implementation)
@@ -94,7 +95,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
                 dmax);
           }
 #endif
-          set_vtx_range(acc, tracks, scratch, vertices, cParams, osumtkwt, beta, trackBlockSize);
+          set_vtx_range(acc, tracks, scratch, vertices, vertexScratch, cParams, osumtkwt, beta, trackBlockSize);
           delta_sum_range = 0.;
           alpaka::syncBlockThreads(acc);
           if (once_per_block(acc)) {
@@ -114,7 +115,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
                 niter,
                 delta_sum_range,
                 dmax);
-            dump(acc, beta, vertices);
+            dump(acc, beta, vertices, vertexScratch);
           }
 #endif
           break;
