@@ -10,5 +10,7 @@
 #include "DataFormats/VertexSoA/interface/VertexSoA.h"
 #include "DataFormats/VertexSoA/interface/TrackForVertexHostCollection.h"
 #include "DataFormats/VertexSoA/interface/TrackForVertexSoA.h"
+#include "DataFormats/VertexSoA/interface/VertexTrackHostCollection.h"
+#include "DataFormats/VertexSoA/interface/VertexTrackSoA.h"
 
 #endif  // DataFormats_VertexSoA_src_classes_h

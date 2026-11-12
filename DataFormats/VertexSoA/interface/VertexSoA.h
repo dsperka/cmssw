@@ -7,12 +7,6 @@
 #include "DataFormats/SoATemplate/interface/SoALayout.h"
 
 namespace reco {
-  // Capacity of the per-vertex track vectors in VertexSoA (maximum tracks a single vertex can hold)
-  constexpr int maxTracksPerVertexForDeterministicAnnealing = 1024;
-
-  using VertexToTrack = Eigen::Vector<float, maxTracksPerVertexForDeterministicAnnealing>;
-  using VertexToTrackInt = Eigen::Vector<int, maxTracksPerVertexForDeterministicAnnealing>;
-
   GENERATE_SOA_LAYOUT(
       VertexSoALayout,
       SOA_COLUMN(float, x),
@@ -32,8 +26,9 @@ namespace reco {
       // The per-vertex scratch of the clusterizer (rho, aux1, aux2, sw, swE) is not part of this layout: it lives in a
       // device-only collection, see DAInBlocksScratch.h in the plugin
 
-      SOA_EIGEN_COLUMN(VertexToTrackInt, track_id),
-      SOA_EIGEN_COLUMN(VertexToTrack, track_weight),
+      // The tracks of the vertex are the entries first_track to first_track+ntracks-1 of the VertexTrackSoA that goes
+      // with this collection
+      SOA_COLUMN(int, first_track),
 
       SOA_COLUMN(bool, isGood),
       SOA_COLUMN(int, order),

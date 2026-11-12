@@ -1,5 +1,6 @@
 #include "DataFormats/VertexSoA/interface/VertexHostCollection.h"
 #include "DataFormats/VertexSoA/interface/TrackForVertexHostCollection.h"
+#include "DataFormats/VertexSoA/interface/VertexTrackHostCollection.h"
 #include "FWCore/ParameterSet/interface/ConfigurationDescriptions.h"
 #include "FWCore/ParameterSet/interface/ParameterSet.h"
 #include "FWCore/ParameterSet/interface/ParameterSetDescription.h"
@@ -37,6 +38,7 @@ public:
   RecoVertexFromSoAProducer(edm::ParameterSet const& config)
       : portableVertexToken_(consumes(config.getParameter<edm::InputTag>("soaVertex"))),
         soaTracksInBlocksToken_(consumes(config.getParameter<edm::InputTag>("soaVertex"))),
+        soaVertexTracksToken_(consumes(config.getParameter<edm::InputTag>("soaVertex"))),
         recoTrackToken_(consumes(config.getParameter<edm::InputTag>("srcTrack"))),
         theTTBToken_(esConsumes(edm::ESInputTag("", "TransientTrackBuilder"))),
         recoVertexToken_(produces<reco::VertexCollection>()) {
@@ -48,7 +50,8 @@ public:
       timeEstimator_ = std::make_unique<VertexTimeAlgorithmFromTracksPID>(
           timeConf.getParameter<edm::ParameterSet>("fromTracksPID"), collector);
     } else if (!timeAlgo.empty()) {
-      throw cms::Exception("Configuration") << "RecoVertexFromSoAProducer: unknown vertexTimeParameters.algorithm " << timeAlgo;
+      throw cms::Exception("Configuration")
+          << "RecoVertexFromSoAProducer: unknown vertexTimeParameters.algorithm " << timeAlgo;
     }
   }
 
@@ -70,6 +73,7 @@ private:
   void produce(edm::Event&, const edm::EventSetup&) override;
   const edm::EDGetTokenT<::reco::VertexHostCollection> portableVertexToken_;
   const edm::EDGetTokenT<::reco::TrackForVertexHostCollection> soaTracksInBlocksToken_;
+  const edm::EDGetTokenT<::reco::VertexTrackHostCollection> soaVertexTracksToken_;
   const edm::EDGetTokenT<reco::TrackCollection> recoTrackToken_;
   const edm::ESGetToken<TransientTrackBuilder, TransientTrackRecord> theTTBToken_;
   const edm::EDPutTokenT<reco::VertexCollection> recoVertexToken_;
@@ -82,6 +86,8 @@ void RecoVertexFromSoAProducer::produce(edm::Event& iEvent, const edm::EventSetu
   const ::reco::VertexHostCollection::ConstView& hostVertexView = hostVertex.const_view();
   const ::reco::TrackForVertexHostCollection& hostTracksInBlocks = iEvent.get(soaTracksInBlocksToken_);
   const ::reco::TrackForVertexHostCollection::ConstView& hostTracksInBlocksView = hostTracksInBlocks.const_view();
+  const ::reco::VertexTrackHostCollection::ConstView& hostVertexTracksView =
+      iEvent.get(soaVertexTracksToken_).const_view();
   // Note that we need reco::Tracks for building the track Reference vector inside the reco::Vertex
   auto tracks = iEvent.getHandle(recoTrackToken_);
 
@@ -109,10 +115,11 @@ void RecoVertexFromSoAProducer::produce(edm::Event& iEvent, const edm::EventSetu
     trkRefs.reserve(nTrk);
     trkWeights.reserve(nTrk);
     for (int iT = 0; iT < nTrk; iT++) {
-      int blockLocalTrack = hostVertexView[iV].track_id()[iT];
+      const int iEntry = hostVertexView[iV].first_track() + iT;
+      int blockLocalTrack = hostVertexTracksView[iEntry].track_id();
       int new_itrack = hostTracksInBlocksView[blockLocalTrack].ttIndex();
       trkRefs.emplace_back(tracks, new_itrack);
-      trkWeights.push_back(hostVertexView[iV].track_weight()[iT]);
+      trkWeights.push_back(hostVertexTracksView[iEntry].track_weight());
     }
     // Optional vertex time, from the same algorithm as the standard 3D producer
     double vtxTime = 0.;

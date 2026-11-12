@@ -28,4 +28,8 @@
   <class name="reco::TrackForVertexHostCollection" rntupleStreamerMode="true"/>
   <class name="reco::TrackForVertexHostCollection::Layout"/>
   <class name="edm::Wrapper<reco::TrackForVertexHostCollection>" splitLevel="0"/>
+
+  <class name="reco::VertexTrackHostCollection" rntupleStreamerMode="true"/>
+  <class name="reco::VertexTrackHostCollection::Layout"/>
+  <class name="edm::Wrapper<reco::VertexTrackHostCollection>" splitLevel="0"/>
 </lcgdict>

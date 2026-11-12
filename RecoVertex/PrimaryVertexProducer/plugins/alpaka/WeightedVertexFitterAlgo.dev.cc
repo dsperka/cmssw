@@ -16,13 +16,14 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
     ALPAKA_FN_ACC void operator()(const TAcc& acc,
                                   const TrackForVertexDeviceCollection::ConstView tracks,
                                   VertexDeviceCollection::View vertices,
+                                  VertexScratchCollection::View vertexScratch,
                                   BeamSpotPOD const* beamSpot,
                                   bool useBeamSpotConstraint) const {
 #ifdef DEBUG_RECOVERTEX_PRIMARYVERTEXPRODUCER_FITTERALGO
       if (once_per_block(acc)) {
         printf("[WeightedVertexFitterAlgo::FitVertices()] In Vertex 0, %i tracks\n", vertices[0].ntracks());
         for (int itrackInVertex = 0; itrackInVertex < vertices[0].ntracks(); itrackInVertex++) {
-          int itrack = vertices[0].track_id()[itrackInVertex];
+          int itrack = vertexScratch[0].track_id()[itrackInVertex];
           printf("[WeightedVertexFitterAlgo::FitVertices()] Tracks: %i, %1.9f, %1.9f, %1.9f, %1.9f, %1.9f\n",
                  itrack,
                  tracks[itrack].x(),
@@ -50,9 +51,9 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
       if (useBeamSpotConstraint) {
         // beam spot weight 1/sigma^2, as the legacy WeightedMeanFitter (1/cxx)
         bserrx = beamSpot->beamWidthX < precisionsq ? 1. / (precisionsq)
-                                                     : 1. / (beamSpot->beamWidthX * beamSpot->beamWidthX);
+                                                    : 1. / (beamSpot->beamWidthX * beamSpot->beamWidthX);
         bserry = beamSpot->beamWidthY < precisionsq ? 1. / (precisionsq)
-                                                     : 1. / (beamSpot->beamWidthY * beamSpot->beamWidthY);
+                                                    : 1. / (beamSpot->beamWidthY * beamSpot->beamWidthY);
         bsx = beamSpot->x;
         bsy = beamSpot->y;
         corr_x = 1.0;
@@ -83,7 +84,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
         float errz = 0.;
 
         for (int itrackInVertex = 0; itrackInVertex < vertices[ivertex].ntracks(); itrackInVertex++) {
-          int itrack = vertices[ivertex].track_id()[itrackInVertex];
+          int itrack = vertexScratch[ivertex].track_id()[itrackInVertex];
           // Transverse error as in the C++ WeightedMeanPrimaryVertexEstimator: the track's own dxy error without the beam
           // constraint, the error of the impact parameter to the beam line with it
           const float dxy2 = useBeamSpotConstraint ? tracks[itrack].dxy2() : tracks[itrack].dxy2AtIP();
@@ -150,7 +151,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
           z = 0.;
           ndof = 0;
           for (int itrackInVertex = 0; itrackInVertex < vertices[ivertex].ntracks(); itrackInVertex++) {
-            int itrack = vertices[ivertex].track_id()[itrackInVertex];
+            int itrack = vertexScratch[ivertex].track_id()[itrackInVertex];
             // Position (ref point) of the track
             double tx = tracks[itrack].x();
             double ty = tracks[itrack].y();
@@ -199,11 +200,11 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
                 ((tz - old_z) * (tz - old_z) / (1 / wz + errz) <
                  muSquare)) {  // I.e., old coordinates of PCA are within 3 sigma of current vertex position, keep the track
               ndof += 1;
-              vertices[ivertex].track_weight()[itrackInVertex] = 1;
+              vertexScratch[ivertex].track_weight()[itrackInVertex] = 1;
               s_wx += wx;
               s_wz += wz;
             } else {  // Otherwise, discard track
-              vertices[ivertex].track_weight()[itrackInVertex] = 0;
+              vertexScratch[ivertex].track_weight()[itrackInVertex] = 0;
               wx = 0.;
               wz = 0.;
             }
@@ -307,7 +308,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
         // Last get the chi square of the final vertex fit
         double chi2 = 0.;
         for (int itrackInVertex = 0; itrackInVertex < vertices[ivertex].ntracks(); itrackInVertex++) {
-          int itrack = vertices[ivertex].track_id()[itrackInVertex];
+          int itrack = vertexScratch[ivertex].track_id()[itrackInVertex];
           // Position (ref point) of the track
           float tx = tracks[itrack].x();
           float ty = tracks[itrack].y();
@@ -339,12 +340,52 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
     }  // operator()
   };  // class FitVertices
 
+  // Copies the track lists of the good vertices from the dense per-vertex scratch to the compact jagged list that is put
+  // in the event: the tracks of the vertex in slot v are the entries first_track(v) to first_track(v)+ntracks(v)-1
+  class CompactVertexTracks {
+  public:
+    template <alpaka::concepts::Acc TAcc>
+    ALPAKA_FN_ACC void operator()(const TAcc& acc,
+                                  VertexDeviceCollection::View vertices,
+                                  VertexScratchCollection::ConstView vertexScratch,
+                                  VertexTrackDeviceCollection::View vertexTracks) const {
+      const int nTrueVertex = vertices[0].nV();
+      const int capacity = vertexTracks.metadata().size();
+      if (once_per_block(acc)) {
+        int offset = 0;
+        for (int i = 0; i < nTrueVertex; i++) {
+          const int ivertex = vertices[i].order();
+          vertices[ivertex].first_track() = offset;
+          if (not vertices[ivertex].isGood())
+            continue;
+          // Cannot happen with unique tracks per vertex, but never write beyond the list
+          if (offset + vertices[ivertex].ntracks() > capacity)
+            vertices[ivertex].ntracks() = capacity - offset;
+          offset += vertices[ivertex].ntracks();
+        }
+      }
+      alpaka::syncBlockThreads(acc);
+      for (auto i : uniform_elements(acc, nTrueVertex)) {
+        const int ivertex = vertices[i].order();
+        if (not vertices[ivertex].isGood())
+          continue;
+        const int first = vertices[ivertex].first_track();
+        for (int it = 0; it < vertices[ivertex].ntracks(); it++) {
+          vertexTracks[first + it].track_id() = vertexScratch[ivertex].track_id()[it];
+          vertexTracks[first + it].track_weight() = vertexScratch[ivertex].track_weight()[it];
+        }
+      }
+    }
+  };  // class CompactVertexTracks
+
   WeightedVertexFitterAlgo::WeightedVertexFitterAlgo(Queue& queue, FitterParameters fPar)
       : useBeamSpotConstraint_(fPar.useBeamSpotConstraint) {}  // WeightedVertexFitterAlgo::WeightedVertexFitterAlgo
 
   void WeightedVertexFitterAlgo::fit(Queue& queue,
                                      const TrackForVertexDeviceCollection& deviceTrack,
                                      VertexDeviceCollection& deviceVertex,
+                                     VertexScratchCollection& vertexScratch,
+                                     VertexTrackDeviceCollection& vertexTracks,
                                      const BeamSpotDevice& deviceBeamSpot) {
     const int nVertexToFit =
         1024;  // Right now it executes for all 1024 vertex, even if vertex collection is empty (in which case the kernel passes)
@@ -355,7 +396,15 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
                         FitVertices{},
                         deviceTrack.view(),
                         deviceVertex.view(),
+                        vertexScratch.view(),
                         deviceBeamSpot.data(),
                         useBeamSpotConstraint_);
+    // The fit is complete: compact the track lists into the persistent product
+    alpaka::exec<Acc1D>(queue,
+                        make_workdiv<Acc1D>(1, threadsPerBlock),
+                        CompactVertexTracks{},
+                        deviceVertex.view(),
+                        vertexScratch.const_view(),
+                        vertexTracks.view());
   }  // WeightedVertexFitterAlgo::fit
 }  // namespace ALPAKA_ACCELERATOR_NAMESPACE

@@ -19,6 +19,12 @@ namespace reco {
 
   using TrackToVertex = Eigen::Vector<float, maxTotalVertexForDeterministicAnnealing>;
 
+  // Capacity of the per-vertex track lists (maximum number of tracks a single vertex can hold)
+  constexpr int maxTracksPerVertexForDeterministicAnnealing = 1024;
+
+  using VertexToTrack = Eigen::Vector<float, maxTracksPerVertexForDeterministicAnnealing>;
+  using VertexToTrackInt = Eigen::Vector<int, maxTracksPerVertexForDeterministicAnnealing>;
+
   GENERATE_SOA_LAYOUT(TrackForVertexScratchSoALayout,
                       // columns: one value per track
                       SOA_COLUMN(float, sum_Z),  // partition function of the track
@@ -41,7 +47,12 @@ namespace reco {
                       SOA_COLUMN(float, aux1),
                       SOA_COLUMN(float, aux2),
                       SOA_COLUMN(float, sw),
-                      SOA_COLUMN(float, swE))
+                      SOA_COLUMN(float, swE),
+
+                      // Dense track list of the vertex, filled by the clusterizer and read by the fitter. The compact
+                      // version of it that is put in the event is VertexTrackSoA
+                      SOA_EIGEN_COLUMN(VertexToTrackInt, track_id),
+                      SOA_EIGEN_COLUMN(VertexToTrack, track_weight))
 
   using VertexScratchSoA = VertexScratchSoALayout<>;
 }  // namespace reco

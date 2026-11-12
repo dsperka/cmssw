@@ -225,21 +225,21 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
         if (ivtxFromTk == k) {
           bool isNew = true;
           for (int ivtrack = 0; ivtrack < vertices[ivertex].ntracks(); ivtrack++) {
-            if (tracks[itrack].ttIndex() == tracks[vertices[ivertex].track_id()[ivtrack]].ttIndex())
+            if (tracks[itrack].ttIndex() == tracks[vertexScratch[ivertex].track_id()[ivtrack]].ttIndex())
               isNew = false;
           }
           if (!isNew) {
             continue;
           }
           // Here we are saving the itrack (i.e. index in the device collection) instead tracks[itrack].ttIndex(); (index of the input reco track collection) so we can use the same device collection in the fitter
-          vertices[ivertex].track_id()[vertices[ivertex].ntracks()] = itrack;
-          vertices[ivertex].track_weight()[vertices[ivertex].ntracks()] = 1.;
+          vertexScratch[ivertex].track_id()[vertices[ivertex].ntracks()] = itrack;
+          vertexScratch[ivertex].track_weight()[vertices[ivertex].ntracks()] = 1.;
           vertices[ivertex].ntracks()++;
         }
       }
       double sum_invvar = 0.;
       for (int it = 0; it < vertices[ivertex].ntracks(); it++) {
-        sum_invvar += tracks[vertices[ivertex].track_id()[it]].oneoverdz2();
+        sum_invvar += tracks[vertexScratch[ivertex].track_id()[it]].oneoverdz2();
       }
       sigma_z[ivertex] = (sum_invvar > 0.) ? alpaka::math::sqrt(acc, 1. / sum_invvar) : 0.;
       // Candidates with fewer than 2 tracks are not dropped here: as in the C++ implementation they take part in the
@@ -267,8 +267,8 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
           head = thisVertex;
         } else {
           for (int itrack = 0; itrack < vertices[thisVertex].ntracks(); itrack++) {
-            vertices[head].track_id()[vertices[head].ntracks()] = vertices[thisVertex].track_id()[itrack];
-            vertices[head].track_weight()[vertices[head].ntracks()] = 1.;
+            vertexScratch[head].track_id()[vertices[head].ntracks()] = vertexScratch[thisVertex].track_id()[itrack];
+            vertexScratch[head].track_weight()[vertices[head].ntracks()] = 1.;
             vertices[head].ntracks()++;
           }
           vertices[thisVertex].isGood() = false;

@@ -1,8 +1,10 @@
 #ifndef RecoVertex_PrimaryVertexProducer_plugins_alpaka_WeightedVertexFitterAlgo_h
 #define RecoVertex_PrimaryVertexProducer_plugins_alpaka_WeightedVertexFitterAlgo_h
 
+#include "DAInBlocksScratch.h"
 #include "DataFormats/BeamSpot/interface/alpaka/BeamSpotDevice.h"
 #include "DataFormats/VertexSoA/interface/alpaka/VertexDeviceCollection.h"
+#include "DataFormats/VertexSoA/interface/alpaka/VertexTrackDeviceCollection.h"
 #include "DataFormats/VertexSoA/interface/alpaka/TrackForVertexDeviceCollection.h"
 #include "HeterogeneousCore/AlpakaInterface/interface/config.h"
 
@@ -19,6 +21,8 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
     void fit(Queue& queue,
              const TrackForVertexDeviceCollection& deviceTrack,
              VertexDeviceCollection& deviceVertex,
+             VertexScratchCollection& vertexScratch,
+             VertexTrackDeviceCollection& vertexTracks,
              const BeamSpotDevice& deviceBeamSpot);
 
   private:

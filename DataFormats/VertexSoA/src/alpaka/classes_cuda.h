@@ -12,5 +12,7 @@
 #include "DataFormats/VertexSoA/interface/alpaka/VertexDeviceCollection.h"
 #include "DataFormats/VertexSoA/interface/TrackForVertexSoA.h"
 #include "DataFormats/VertexSoA/interface/alpaka/TrackForVertexDeviceCollection.h"
+#include "DataFormats/VertexSoA/interface/VertexTrackSoA.h"
+#include "DataFormats/VertexSoA/interface/alpaka/VertexTrackDeviceCollection.h"
 
 #endif  // DataFormats_VertexSoA_src_alpaka_classes_cuda_h

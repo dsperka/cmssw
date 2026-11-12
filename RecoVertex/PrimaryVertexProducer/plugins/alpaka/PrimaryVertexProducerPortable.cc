@@ -1,4 +1,5 @@
 #include "DataFormats/VertexSoA/interface/alpaka/VertexDeviceCollection.h"
+#include "DataFormats/VertexSoA/interface/alpaka/VertexTrackDeviceCollection.h"
 #include "DAInBlocksScratch.h"
 #include "DataFormats/BeamSpot/interface/alpaka/BeamSpotDevice.h"
 #include "FWCore/ParameterSet/interface/ConfigurationDescriptions.h"
@@ -42,6 +43,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
       beamSpotToken_ = consumes(config.getParameter<edm::InputTag>("BeamSpotLabel"));
       devicePutToken_ = produces();
       tracksInBlocksPutToken_ = produces();
+      vertexTracksPutToken_ = produces();
       blockSize_ = config.getParameter<int32_t>("blockSize");
       blockOverlap_ = config.getParameter<double>("blockOverlap");
       // Fetch the (not free) ParameterSet once
@@ -84,6 +86,9 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
       VertexDeviceCollection deviceVertex(
           iEvent.queue(), 1024);  // Hard capped to 1024, though we might want to restrict it for low PU cases
 
+      VertexTrackDeviceCollection vertexTracks(iEvent.queue(),
+                                               nBlocks * blockSize_);  // compact track lists of the vertices
+
       // run the algorithm
       //// First create the individual blocks
       TracksForDAInBlocksAlgo blockKernel_{};
@@ -102,10 +107,11 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
           iEvent.queue(), tracksInBlocks, scratch, deviceVertex, vertexScratch, clusterParams_, nBlocks, blockSize_);
       //// And then fit
       WeightedVertexFitterAlgo fitterKernel_{iEvent.queue(), fitterParams_};
-      fitterKernel_.fit(iEvent.queue(), tracksInBlocks, deviceVertex, beamSpot);
+      fitterKernel_.fit(iEvent.queue(), tracksInBlocks, deviceVertex, vertexScratch, vertexTracks, beamSpot);
       // Put the vertices in the event as a portable collection
       iEvent.emplace(devicePutToken_, std::move(deviceVertex));
       iEvent.emplace(tracksInBlocksPutToken_, std::move(tracksInBlocks));
+      iEvent.emplace(vertexTracksPutToken_, std::move(vertexTracks));
     }
 
     static void fillDescriptions(edm::ConfigurationDescriptions& descriptions) {
@@ -142,6 +148,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
     device::EDGetToken<BeamSpotDevice> beamSpotToken_;
     device::EDPutToken<VertexDeviceCollection> devicePutToken_;
     device::EDPutToken<TrackForVertexDeviceCollection> tracksInBlocksPutToken_;
+    device::EDPutToken<VertexTrackDeviceCollection> vertexTracksPutToken_;
     int32_t blockSize_;
     double blockOverlap_;
     FitterParameters fitterParams_;
