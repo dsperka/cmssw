@@ -109,14 +109,15 @@ The sixth series of the gallery is Alpaka with `mintrkweight` 0.4 and `zmerge` 0
 
 | | D.A. 3D | D.A. 4D | GNN | C++ In Blocks | Alpaka CPU | Alpaka, mtw 0.4 zm 0.02 |
 |---|---|---|---|---|---|---|
-| real | 118.91 | 111.44 | 97.91 | 120.18 | 120.19 | 117.07 |
-| fake | 9.83 | 8.33 | 14.11 | 15.32 | 15.28 | 13.57 |
-| split | 8.20 | 6.24 | 12.65 | 11.98 | 11.94 | 10.17 |
+| real | 118.91 | 111.44 | 97.91 | 120.18 | 120.17 | 117.07 |
+| fake | 9.83 | 8.33 | 14.11 | 15.32 | 15.26 | 13.57 |
+| split | 8.20 | 6.24 | 12.65 | 11.98 | 11.91 | 10.17 |
 | real / (real + fake) | 0.924 | 0.930 | 0.874 | 0.887 | 0.887 | 0.896 |
 | leading vertex found (of 1000) | 959 | 938 | 884 | 949 | 949 | 946 |
 
 C++ in blocks and Alpaka agree again (the same 949 leading vertices); the legacy 3D DA finds 10 more, partly a statistical fluctuation.
 Neither the clusterizer nor the fitter alone accounts for the difference to the legacy DA (swap test on 200 events).
+These numbers and the galleries were produced with the compact vertex-track-list data format (`VertexTrackSoA`; Alpaka CPU differs from the previous run by less than 0.05 vertices per event, as expected from the layout sensitivity of the CPU -O3 build).
 Files: `results/summary_per_event_1000events.txt`, `results/DQM_6way_harvested_1000events.root`, `galleries/pv_dqm_gallery_6way_1000events.html`, `phone/six_collections_1000events.html`.
 The same job with 6 threads gives histograms identical to the single-thread job (differences < 1e-15) and a reconstruction 1.7 times faster.
 
