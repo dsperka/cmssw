@@ -48,6 +48,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
     template <alpaka::concepts::Acc TAcc>
     ALPAKA_FN_ACC __attribute__((noinline)) inline void set_vtx_range(const TAcc& acc,
                                                                       TrackForVertexDeviceCollection::View tracks,
+                                                                      TrackForVertexScratchCollection::View scratch,
                                                                       VertexDeviceCollection::View vertices,
                                                                       DAInBlocksClusterParameters const& cParams,
                                                                       double& osumtkwt,
@@ -66,7 +67,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
         float zmin = tracks[itrack].z() - zrange;
         // First the lower bound
         int kmin = alpaka::math::min(
-            acc, (int)(maxVerticesPerBlock * blockIdx) + vertices.nV(blockIdx) - 1, tracks[itrack].kmin());
+            acc, (int)(maxVerticesPerBlock * blockIdx) + vertices.nV(blockIdx) - 1, scratch[itrack].kmin());
         // If the vertex position in z is bigger than the minimum, go down through all vertices position until finding one that is too far
         if (vertices[vertices[kmin].order()].z() > zmin) {
           // i.e., while we find another vertex within range that is before the previous initial step
@@ -87,7 +88,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
                               0,
                               alpaka::math::min(acc,
                                                 maxVerticesPerBlock * blockIdx + (int)(vertices[blockIdx].nV()) - 1,
-                                                (int)(tracks[itrack].kmax()) - 1));
+                                                (int)(scratch[itrack].kmax()) - 1));
         // For corner cases in which we purged the first vertex, thus not properly updating kmax during purging
         while (vertices[kmax].order() == emptyVertexOrder)
           kmax++;
@@ -103,12 +104,12 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
           }
         }
         if (kmin <= kmax) {
-          tracks[itrack].kmin() = (int)kmin;
-          tracks[itrack].kmax() = (int)kmax + 1;
+          scratch[itrack].kmin() = (int)kmin;
+          scratch[itrack].kmax() = (int)kmax + 1;
         } else {  // Track goes to the most extreme cases if no associated one is found
-          tracks[itrack].kmin() =
+          scratch[itrack].kmin() =
               (int)alpaka::math::max(acc, maxVerticesPerBlock * blockIdx, (int)alpaka::math::min(acc, kmin, kmax));
-          tracks[itrack].kmax() =
+          scratch[itrack].kmax() =
               (int)alpaka::math::min(acc,
                                      (maxVerticesPerBlock * blockIdx) + (int)vertices[blockIdx].nV(),
                                      (int)alpaka::math::max(acc, kmin, kmax) + 1);
@@ -137,22 +138,22 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
       for (int itrackO : independent_group_elements(acc, trackBlockSize)) {
         int itrack = itrackO + blockIdx * trackBlockSize;
         double botrack_dz2 = -(beta)*tracks[itrack].oneoverdz2();
-        tracks[itrack].sum_Z() = Zinit;
-        for (int ivertexO = tracks[itrack].kmin(); ivertexO < tracks[itrack].kmax(); ++ivertexO) {
+        scratch[itrack].sum_Z() = Zinit;
+        for (int ivertexO = scratch[itrack].kmin(); ivertexO < scratch[itrack].kmax(); ++ivertexO) {
           int ivertex = vertices[ivertexO].order();
           if (not(vertices[ivertex].isGood()))
             continue;
           // Z_t = sum_v pho_v * e^{-beta*(z_t-z_v)/dz^2}, partition function of the track
-          tracks[itrack].sum_Z() +=
+          scratch[itrack].sum_Z() +=
               vertices[ivertex].rho() * alpaka::math::exp(acc,
                                                           botrack_dz2 * (tracks[itrack].z() - vertices[ivertex].z()) *
                                                               (tracks[itrack].z() - vertices[ivertex].z()));
         }  //end vertex for
-        if (not(alpaka::math::isfinite(acc, tracks[itrack].sum_Z())))
-          tracks[itrack].sum_Z() = 0;
-        if (tracks[itrack].sum_Z() > 1e-40) {  // If non-zero then the track has a non-trivial assignment to a vertex
-          double sumw = tracks[itrack].weight() / (double)tracks[itrack].sum_Z();
-          for (int ivertexO = tracks[itrack].kmin(); ivertexO < tracks[itrack].kmax(); ++ivertexO) {
+        if (not(alpaka::math::isfinite(acc, scratch[itrack].sum_Z())))
+          scratch[itrack].sum_Z() = 0;
+        if (scratch[itrack].sum_Z() > 1e-40) {  // If non-zero then the track has a non-trivial assignment to a vertex
+          double sumw = tracks[itrack].weight() / (double)scratch[itrack].sum_Z();
+          for (int ivertexO = scratch[itrack].kmin(); ivertexO < scratch[itrack].kmax(); ++ivertexO) {
             int ivertex = vertices[ivertexO].order();
             if (not(vertices[ivertex].isGood()))
               continue;
@@ -182,7 +183,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
         float swz = 0.;
         float swE = 0.;
         for (int itrack = blockIdx * trackBlockSize; itrack < (blockIdx + 1) * trackBlockSize; itrack++) {
-          if ((ivertexO >= tracks[itrack].kmin()) && (ivertexO < tracks[itrack].kmax())) {
+          if ((ivertexO >= scratch[itrack].kmin()) && (ivertexO < scratch[itrack].kmax())) {
             se += scratch[itrack].vert_se()[ivertex];
             sw += scratch[itrack].vert_sw()[ivertex];
             swz += scratch[itrack].vert_swz()[ivertex];

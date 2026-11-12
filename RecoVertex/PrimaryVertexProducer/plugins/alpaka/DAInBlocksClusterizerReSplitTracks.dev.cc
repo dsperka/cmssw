@@ -28,11 +28,11 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
     while (nprev != vertices[blockIdx].nV() && (ntry++ < 10)) {
       thermalize(acc, tracks, scratch, vertices, cParams, osumtkwt, beta, cParams.delta_highT, 0.0, trackBlockSize);
       nprev = vertices[blockIdx].nV();
-      merge(acc, tracks, vertices, cParams, osumtkwt, beta, trackBlockSize);
+      merge(acc, tracks, scratch, vertices, cParams, osumtkwt, beta, trackBlockSize);
       while (nprev != vertices[blockIdx].nV()) {
         nprev = vertices[blockIdx].nV();
         update(acc, tracks, scratch, vertices, cParams, osumtkwt, beta, 0.0, false, trackBlockSize);
-        merge(acc, tracks, vertices, cParams, osumtkwt, beta, trackBlockSize);
+        merge(acc, tracks, scratch, vertices, cParams, osumtkwt, beta, trackBlockSize);
       }
       threshold *= 1.1;
       split(acc, tracks, scratch, vertices, cParams, osumtkwt, beta, threshold, trackBlockSize);

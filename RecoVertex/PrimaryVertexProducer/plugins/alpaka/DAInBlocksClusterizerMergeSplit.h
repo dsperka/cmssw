@@ -20,6 +20,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
     template <alpaka::concepts::Acc TAcc>
     ALPAKA_FN_ACC __attribute__((noinline)) inline void merge(const TAcc& acc,
                                                               TrackForVertexDeviceCollection::View tracks,
+                                                              TrackForVertexScratchCollection::View scratch,
                                                               VertexDeviceCollection::View vertices,
                                                               DAInBlocksClusterParameters const& cParams,
                                                               double& osumtkwt,
@@ -141,16 +142,16 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
         nprev = vertices[blockIdx].nV();  // And to the counter of previous vertices
         for (int itrackO : independent_group_elements(acc, trackBlockSize)) {
           int itrack = itrackO + blockIdx * trackBlockSize;
-          if (tracks[itrack].kmax() > ivertexO + 1)
-            tracks[itrack].kmax()--;
-          if ((tracks[itrack].kmin() > ivertexO) || ((tracks[itrack].kmax() < (tracks[itrack].kmin() + 1)) &&
-                                                     (tracks[itrack].kmin() > maxVerticesPerBlock * blockIdx)))
-            tracks[itrack].kmin()--;
+          if (scratch[itrack].kmax() > ivertexO + 1)
+            scratch[itrack].kmax()--;
+          if ((scratch[itrack].kmin() > ivertexO) || ((scratch[itrack].kmax() < (scratch[itrack].kmin() + 1)) &&
+                                                      (scratch[itrack].kmin() > maxVerticesPerBlock * blockIdx)))
+            scratch[itrack].kmin()--;
         }
         break;
       }
       alpaka::syncBlockThreads(acc);
-      set_vtx_range(acc, tracks, vertices, cParams, osumtkwt, beta, trackBlockSize);
+      set_vtx_range(acc, tracks, scratch, vertices, cParams, osumtkwt, beta, trackBlockSize);
     }
 
     template <alpaka::concepts::Acc TAcc>
@@ -255,7 +256,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
         alpaka::syncBlockThreads(acc);
         for (int itrackO : independent_group_elements(acc, trackBlockSize)) {
           int itrack = itrackO + blockIdx * trackBlockSize;
-          if (tracks[itrack].sum_Z() > 1e-40) {
+          if (scratch[itrack].sum_Z() > 1e-40) {
             // winner-takes-all, usually overestimates splitting
             double tl = tracks[itrack].z() < vertices[ivertex].z() ? 1. : 0.;
             double tr = 1. - tl;
@@ -273,7 +274,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
                 alpaka::math::exp(acc,
                                   -(beta) * (tracks[itrack].z() - vertices[ivertex].z()) *
                                       (tracks[itrack].z() - vertices[ivertex].z()) * tracks[itrack].oneoverdz2()) /
-                tracks[itrack].sum_Z();
+                scratch[itrack].sum_Z();
             double w = p * tracks[itrack].oneoverdz2();
             alpaka::atomicAdd(acc, &p1, p * tl, alpaka::hierarchy::Threads{});
             alpaka::atomicAdd(acc, &p2, p * tr, alpaka::hierarchy::Threads{});
@@ -395,10 +396,10 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
         // Now, update kmin/kmax for all tracks
         for (int itrackO : independent_group_elements(acc, trackBlockSize)) {
           int itrack = itrackO + blockIdx * trackBlockSize;
-          if (tracks[itrack].kmin() > ivertexO)
-            tracks[itrack].kmin()++;
-          if ((tracks[itrack].kmax() >= ivertexO) || (tracks[itrack].kmax() == tracks[itrack].kmin()))
-            tracks[itrack].kmax()++;
+          if (scratch[itrack].kmin() > ivertexO)
+            scratch[itrack].kmin()++;
+          if ((scratch[itrack].kmax() >= ivertexO) || (scratch[itrack].kmax() == scratch[itrack].kmin()))
+            scratch[itrack].kmax()++;
         }
         nprev = vertices[blockIdx].nV();
         if (once_per_block(acc)) {
@@ -416,6 +417,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
     template <alpaka::concepts::Acc TAcc>
     ALPAKA_FN_ACC __attribute__((noinline)) inline void purge(const TAcc& acc,
                                                               TrackForVertexDeviceCollection::View tracks,
+                                                              TrackForVertexScratchCollection::View scratch,
                                                               VertexDeviceCollection::View vertices,
                                                               DAInBlocksClusterParameters const& cParams,
                                                               double& osumtkwt,
@@ -432,7 +434,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
       double rhoconst = rho0 * alpaka::math::exp(acc, -beta * (cParams.dzCutOff * cParams.dzCutOff));
       int nprev = vertices[blockIdx].nV();
       // Reassign
-      set_vtx_range(acc, tracks, vertices, cParams, osumtkwt, beta, trackBlockSize);
+      set_vtx_range(acc, tracks, scratch, vertices, cParams, osumtkwt, beta, trackBlockSize);
       for (int ivertexB : independent_group_elements(acc, vertices[blockIdx].nV())) {
         int ivertexO = maxVerticesPerBlock * blockIdx + ivertexB;
         int ivertex = vertices[ivertexO].order();
@@ -443,10 +445,10 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
       // Get quality of vertex in terms of #Tracks and sum of track probabilities
       for (int itrackO : independent_group_elements(acc, trackBlockSize)) {
         int itrack = itrackO + blockIdx * trackBlockSize;
-        double track_aux1 = ((tracks[itrack].sum_Z() > eps) && (tracks[itrack].weight() > cParams.uniquetrkminp))
-                                ? 1. / tracks[itrack].sum_Z()
+        double track_aux1 = ((scratch[itrack].sum_Z() > eps) && (tracks[itrack].weight() > cParams.uniquetrkminp))
+                                ? 1. / scratch[itrack].sum_Z()
                                 : 0.;
-        for (int ivertexO = tracks[itrack].kmin(); ivertexO < tracks[itrack].kmax(); ++ivertexO) {
+        for (int ivertexO = scratch[itrack].kmin(); ivertexO < scratch[itrack].kmax(); ++ivertexO) {
           int ivertex = vertices[ivertexO].order();
           double ppcut = cParams.uniquetrkweight * vertices[ivertex].rho() / (vertices[ivertex].rho() + rhoconst);
           double track_vertex_aux1 = alpaka::math::exp(
@@ -504,16 +506,16 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
       if (k0 != (int)(maxVerticesPerBlock * blockIdx + (int)nprev)) {
         for (int itrackO : independent_group_elements(acc, trackBlockSize)) {
           int itrack = itrackO + blockIdx * trackBlockSize;
-          if (tracks[itrack].kmax() > k0)
-            tracks[itrack].kmax()--;
-          if ((tracks[itrack].kmin() > k0) || ((tracks[itrack].kmax() < (tracks[itrack].kmin() + 1)) &&
-                                               (tracks[itrack].kmin() > (int)(maxVerticesPerBlock * blockIdx))))
-            tracks[itrack].kmin()--;
+          if (scratch[itrack].kmax() > k0)
+            scratch[itrack].kmax()--;
+          if ((scratch[itrack].kmin() > k0) || ((scratch[itrack].kmax() < (scratch[itrack].kmin() + 1)) &&
+                                                (scratch[itrack].kmin() > (int)(maxVerticesPerBlock * blockIdx))))
+            scratch[itrack].kmin()--;
         }
       }  // end if
       alpaka::syncBlockThreads(acc);
       if (nprev != vertices[blockIdx].nV()) {
-        set_vtx_range(acc, tracks, vertices, cParams, osumtkwt, beta, trackBlockSize);
+        set_vtx_range(acc, tracks, scratch, vertices, cParams, osumtkwt, beta, trackBlockSize);
       }
     }
 

@@ -64,6 +64,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
                          int32_t blockSize);  // Clusterization
     void arbitrate(Queue& queue,
                    TrackForVertexDeviceCollection& inputTracks,
+                   TrackForVertexScratchCollection& scratch,
                    VertexDeviceCollection& deviceVertex,
                    DAInBlocksClusterParameters const& cParams,
                    int32_t nBlocks,

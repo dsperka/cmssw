@@ -17,6 +17,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
   template <alpaka::concepts::Acc TAcc>
   ALPAKA_FN_ACC static void resortVerticesAndAssign(const TAcc& acc,
                                                     TrackForVertexDeviceCollection::View tracks,
+                                                    TrackForVertexScratchCollection::View scratch,
                                                     VertexDeviceCollection::View vertices,
                                                     DAInBlocksClusterParameters const& cParams,
                                                     int32_t nBlocks) {
@@ -138,11 +139,11 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
         }
       }
       if (kmin <= kmax) {
-        tracks[itrack].kmin() = kmin;
-        tracks[itrack].kmax() = kmax + 1;
+        scratch[itrack].kmin() = kmin;
+        scratch[itrack].kmax() = kmax + 1;
       } else {
-        tracks[itrack].kmin() = alpaka::math::max(acc, 0, alpaka::math::min(acc, kmin, kmax));
-        tracks[itrack].kmax() = alpaka::math::min(acc, vertices[0].nV(), alpaka::math::max(acc, kmin, kmax) + 1);
+        scratch[itrack].kmin() = alpaka::math::max(acc, 0, alpaka::math::min(acc, kmin, kmax));
+        scratch[itrack].kmax() = alpaka::math::min(acc, vertices[0].nV(), alpaka::math::max(acc, kmin, kmax) + 1);
       }
     }
 #ifdef DEBUG_RECOVERTEX_PRIMARYVERTEXPRODUCER_ARBITRATOR
@@ -156,8 +157,8 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
     double rho0 = vertices[0].nV() > 1 ? 1. / vertices[0].nV() : 1.;
     double z_sum_init = rho0 * alpaka::math::exp(acc, -(beta)*cParams.dzCutOff * cParams.dzCutOff);
     for (int itrack : uniform_elements(acc, tracks.nT())) {
-      int kmin = tracks[itrack].kmin();
-      int kmax = tracks[itrack].kmax();
+      int kmin = scratch[itrack].kmin();
+      int kmax = scratch[itrack].kmax();
       double p_max = -1;
       const int noVertexAssigned = 10000;  // track has no vertex above mintrkweight
       int iMax = noVertexAssigned;
@@ -184,8 +185,8 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
         }
       }
       // Finally register that itrack is assigned to vertex iMax
-      tracks[itrack].kmin() = iMax;
-      tracks[itrack].kmax() = iMax + 1;
+      scratch[itrack].kmin() = iMax;
+      scratch[itrack].kmax() = iMax + 1;
     }
 #ifdef DEBUG_RECOVERTEX_PRIMARYVERTEXPRODUCER_ARBITRATOR
     if (once_per_block(acc)) {
@@ -199,6 +200,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
   template <alpaka::concepts::Acc TAcc>
   ALPAKA_FN_ACC static void finalizeVertices(const TAcc& acc,
                                              TrackForVertexDeviceCollection::View tracks,
+                                             TrackForVertexScratchCollection::View scratch,
                                              VertexDeviceCollection::View vertices,
                                              DAInBlocksClusterParameters const& cParams) {
     // Per-candidate z uncertainty (inverse-variance combination of its
@@ -217,7 +219,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
         if (not(tracks[itrack].isGood())) {
           continue;
         }
-        int ivtxFromTk = tracks[itrack].kmin();
+        int ivtxFromTk = scratch[itrack].kmin();
         if (ivtxFromTk == k) {
           bool isNew = true;
           for (int ivtrack = 0; ivtrack < vertices[ivertex].ntracks(); ivtrack++) {
@@ -315,6 +317,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
     template <alpaka::concepts::Acc TAcc>
     ALPAKA_FN_ACC void operator()(const TAcc& acc,
                                   TrackForVertexDeviceCollection::View tracks,
+                                  TrackForVertexScratchCollection::View scratch,
                                   VertexDeviceCollection::View vertices,
                                   DAInBlocksClusterParameters const cParams,
                                   int32_t nBlocks) const {
@@ -324,7 +327,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
         printf("[DAInBlocksClusterizerAlgoArbitrator::operator()] Start arbitration\n");
       }
 #endif
-      resortVerticesAndAssign(acc, tracks, vertices, cParams, nBlocks);
+      resortVerticesAndAssign(acc, tracks, scratch, vertices, cParams, nBlocks);
 #ifdef DEBUG_RECOVERTEX_PRIMARYVERTEXPRODUCER_ARBITRATOR
       if (once_per_block(acc)) {
         printf("[DAInBlocksClusterizerAlgoArbitrator::operator()] Vertex reassignment finished\n");
@@ -332,7 +335,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
       }
 #endif
       alpaka::syncBlockThreads(acc);
-      finalizeVertices(acc, tracks, vertices, cParams);  // In CUDA it used to be verticesAndClusterize
+      finalizeVertices(acc, tracks, scratch, vertices, cParams);  // In CUDA it used to be verticesAndClusterize
 #ifdef DEBUG_RECOVERTEX_PRIMARYVERTEXPRODUCER_ARBITRATOR
       if (once_per_block(acc)) {
         printf("[DAInBlocksClusterizerAlgoArbitrator::operator()] Vertices finalized\n");
@@ -345,6 +348,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
 
   void DAInBlocksClusterizerAlgo::arbitrate(Queue& queue,
                                             TrackForVertexDeviceCollection& deviceTrack,
+                                            TrackForVertexScratchCollection& scratch,
                                             VertexDeviceCollection& deviceVertex,
                                             DAInBlocksClusterParameters const& cParams,
                                             int32_t nBlocks,
@@ -354,6 +358,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
                         make_workdiv<Acc1D>(blocks, blockSize),
                         ArbitrateKernel{},
                         deviceTrack.view(),
+                        scratch.view(),
                         deviceVertex.view(),
                         cParams,
                         nBlocks);

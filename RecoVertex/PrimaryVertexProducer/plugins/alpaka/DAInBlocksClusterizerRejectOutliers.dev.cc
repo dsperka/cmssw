@@ -30,12 +30,12 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
     }  // end if
     thermalize(acc, tracks, scratch, vertices, cParams, osumtkwt, beta, cParams.delta_lowT, rho0, trackBlockSize);
     int nprev = vertices[blockIdx].nV();
-    merge(acc, tracks, vertices, cParams, osumtkwt, beta, trackBlockSize);
+    merge(acc, tracks, scratch, vertices, cParams, osumtkwt, beta, trackBlockSize);
     while (nprev != vertices[blockIdx].nV()) {
-      set_vtx_range(acc, tracks, vertices, cParams, osumtkwt, beta, trackBlockSize);
+      set_vtx_range(acc, tracks, scratch, vertices, cParams, osumtkwt, beta, trackBlockSize);
       update(acc, tracks, scratch, vertices, cParams, osumtkwt, beta, rho0, false, trackBlockSize);
       nprev = vertices[blockIdx].nV();
-      merge(acc, tracks, vertices, cParams, osumtkwt, beta, trackBlockSize);
+      merge(acc, tracks, scratch, vertices, cParams, osumtkwt, beta, trackBlockSize);
     }
     while (beta < 1. / cParams.Tpurge) {
       alpaka::syncBlockThreads(acc);
@@ -47,11 +47,11 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
     }
     alpaka::syncBlockThreads(acc);
     nprev = vertices[blockIdx].nV();
-    purge(acc, tracks, vertices, cParams, osumtkwt, beta, rho0, trackBlockSize);
+    purge(acc, tracks, scratch, vertices, cParams, osumtkwt, beta, rho0, trackBlockSize);
     while (nprev != vertices[blockIdx].nV()) {
       thermalize(acc, tracks, scratch, vertices, cParams, osumtkwt, beta, cParams.delta_lowT, rho0, trackBlockSize);
       nprev = vertices[blockIdx].nV();
-      purge(acc, tracks, vertices, cParams, osumtkwt, beta, rho0, trackBlockSize);
+      purge(acc, tracks, scratch, vertices, cParams, osumtkwt, beta, rho0, trackBlockSize);
       alpaka::syncBlockThreads(acc);
     }
     while (beta < 1. / cParams.Tstop) {
@@ -64,7 +64,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
     }
     alpaka::syncBlockThreads(acc);
     // The last track to vertex assignment!
-    set_vtx_range(acc, tracks, vertices, cParams, osumtkwt, beta, trackBlockSize);
+    set_vtx_range(acc, tracks, scratch, vertices, cParams, osumtkwt, beta, trackBlockSize);
   }  // rejectOutliers
 
   class RejectOutliersKernel {

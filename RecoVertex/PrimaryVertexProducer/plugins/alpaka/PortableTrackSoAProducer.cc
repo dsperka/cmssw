@@ -215,10 +215,6 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
       out.dxy2AtIP() = std::pow(in.track().dxyError(), 2);
       out.dxy2() = std::pow(transverseIP.error(), 2);
       out.order() = order;
-      // All of these are initializers for the vertexing
-      out.sum_Z() = 0;      // partition function sum
-      out.kmin() = 0;       // minimum vertex identifier, will loop from kmin to kmax-1. At the start only one vertex
-      out.kmax() = 1;       // maximum vertex identifier, will loop from kmin to kmax-1. At the start only one vertex
       out.isGood() = true;  // if we are here, we are to keep this track
     }
     return weight;

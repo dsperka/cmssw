@@ -42,7 +42,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
         delta_max = cParams.delta_lowT / alpaka::math::sqrt(acc, alpaka::math::max(acc, beta, 1.0));
       }
       int maxIterations = 1000;
-      set_vtx_range(acc, tracks, vertices, cParams, osumtkwt, beta, trackBlockSize);
+      set_vtx_range(acc, tracks, scratch, vertices, cParams, osumtkwt, beta, trackBlockSize);
       alpaka::syncBlockThreads(acc);
       if (once_per_block(acc)) {
         for (int k = 0; k < vertices[blockIdx].nV(); k++)
@@ -94,7 +94,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
                 dmax);
           }
 #endif
-          set_vtx_range(acc, tracks, vertices, cParams, osumtkwt, beta, trackBlockSize);
+          set_vtx_range(acc, tracks, scratch, vertices, cParams, osumtkwt, beta, trackBlockSize);
           delta_sum_range = 0.;
           alpaka::syncBlockThreads(acc);
           if (once_per_block(acc)) {

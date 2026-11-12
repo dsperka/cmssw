@@ -96,7 +96,8 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
       clusterizerKernel_.reject_outliers(
           iEvent.queue(), tracksInBlocks, scratch, deviceVertex, clusterParams_, nBlocks, blockSize_);
       // Need to have all vertex before arbitrating and deciding what we keep
-      clusterizerKernel_.arbitrate(iEvent.queue(), tracksInBlocks, deviceVertex, clusterParams_, nBlocks, blockSize_);
+      clusterizerKernel_.arbitrate(
+          iEvent.queue(), tracksInBlocks, scratch, deviceVertex, clusterParams_, nBlocks, blockSize_);
       //// And then fit
       WeightedVertexFitterAlgo fitterKernel_{iEvent.queue(), fitterParams_};
       fitterKernel_.fit(iEvent.queue(), tracksInBlocks, deviceVertex, beamSpot);

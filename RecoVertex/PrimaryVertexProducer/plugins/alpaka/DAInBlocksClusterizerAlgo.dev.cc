@@ -13,6 +13,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
   template <alpaka::concepts::Acc TAcc>
   ALPAKA_FN_ACC static void initialize(const TAcc& acc,
                                        TrackForVertexDeviceCollection::View tracks,
+                                       TrackForVertexScratchCollection::View scratch,
                                        VertexDeviceCollection::View vertices,
                                        DAInBlocksClusterParameters const& cParams,
                                        int trackBlockSize) {
@@ -42,8 +43,8 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
     for (int itrackO : independent_group_elements(acc, trackBlockSize)) {
       int itrack = itrackO + blockIdx * trackBlockSize;
       // Tracks are associated to vertex in list kmin, kmin+1,... kmax-1, so this just assign all tracks to the vertex we just created
-      tracks[itrack].kmin() = maxVerticesPerBlock * blockIdx;
-      tracks[itrack].kmax() = maxVerticesPerBlock * blockIdx + 1;
+      scratch[itrack].kmin() = maxVerticesPerBlock * blockIdx;
+      scratch[itrack].kmax() = maxVerticesPerBlock * blockIdx + 1;
     }
     alpaka::syncBlockThreads(acc);
   }
@@ -134,12 +135,12 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
       }
 #endif
       int nprev = vertices[blockIdx].nV();
-      merge(acc, tracks, vertices, cParams, osumtkwt, beta, trackBlockSize);
+      merge(acc, tracks, scratch, vertices, cParams, osumtkwt, beta, trackBlockSize);
       while (nprev != vertices[blockIdx].nV()) {
         // If we are here, we merged before, keep merging until stable
         nprev = vertices[blockIdx].nV();
         update(acc, tracks, scratch, vertices, cParams, osumtkwt, beta, 0.0, false, trackBlockSize);
-        merge(acc, tracks, vertices, cParams, osumtkwt, beta, trackBlockSize);
+        merge(acc, tracks, scratch, vertices, cParams, osumtkwt, beta, trackBlockSize);
       }  // end while after merging
       split(acc, tracks, scratch, vertices, cParams, osumtkwt, beta, 1.0, trackBlockSize);
       if (once_per_block(acc)) {
@@ -149,7 +150,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
       alpaka::syncBlockThreads(acc);
       thermalize(acc, tracks, scratch, vertices, cParams, osumtkwt, beta, cParams.delta_highT, 0.0, trackBlockSize);
     }
-    set_vtx_range(acc, tracks, vertices, cParams, osumtkwt, beta, trackBlockSize);
+    set_vtx_range(acc, tracks, scratch, vertices, cParams, osumtkwt, beta, trackBlockSize);
     update(acc, tracks, scratch, vertices, cParams, osumtkwt, beta, 0.0, false, trackBlockSize);
   }  // end coolingWhileSplitting
 
@@ -165,13 +166,13 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
     // After the cooling, we merge any closeby vertices
     int blockIdx = alpaka::getIdx<alpaka::Grid, alpaka::Blocks>(acc)[0u];
     int nprev = vertices[blockIdx].nV();
-    merge(acc, tracks, vertices, cParams, osumtkwt, beta, trackBlockSize);
+    merge(acc, tracks, scratch, vertices, cParams, osumtkwt, beta, trackBlockSize);
     while (nprev != vertices[blockIdx].nV()) {
       // Keep merging until stable
-      set_vtx_range(acc, tracks, vertices, cParams, osumtkwt, beta, trackBlockSize);
+      set_vtx_range(acc, tracks, scratch, vertices, cParams, osumtkwt, beta, trackBlockSize);
       update(acc, tracks, scratch, vertices, cParams, osumtkwt, beta, 0.0, false, trackBlockSize);
       nprev = vertices[blockIdx].nV();
-      merge(acc, tracks, vertices, cParams, osumtkwt, beta, trackBlockSize);
+      merge(acc, tracks, scratch, vertices, cParams, osumtkwt, beta, trackBlockSize);
     }  // end while
   }  // end reMergeTracks
 
@@ -227,7 +228,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
 #endif
       alpaka::syncBlockThreads(acc);
       // In each block, initialize to a single vertex with all tracks
-      initialize(acc, tracks, vertices, cParams, trackBlockSize);
+      initialize(acc, tracks, scratch, vertices, cParams, trackBlockSize);
 #ifdef DEBUG_RECOVERTEX_PRIMARYVERTEXPRODUCER_CLUSTERIZERALGO
       if (once_per_block(acc)) {
         printf("[DAInBlocksClusterizerAlgo::operator()] BlockIdx %i, vertices initialized\n", blockIdx);

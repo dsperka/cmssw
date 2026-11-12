@@ -20,6 +20,9 @@ namespace reco {
 
   GENERATE_SOA_LAYOUT(TrackForVertexScratchSoALayout,
                       // columns: one value per track
+                      SOA_COLUMN(float, sum_Z),  // partition function of the track
+                      SOA_COLUMN(int, kmin),     // range of the vertices the track is compared with: kmin to kmax-1
+                      SOA_COLUMN(int, kmax),
                       SOA_COLUMN(float, aux1),
                       SOA_COLUMN(float, aux2),
 
