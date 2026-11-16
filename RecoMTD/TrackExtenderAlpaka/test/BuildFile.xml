@@ -1,0 +1,21 @@
+<bin file="testMtdTimingMath.cpp" name="testMtdTimingMath">
+  <use name="alpaka"/>
+  <use name="DataFormats/GeometrySurface"/>
+  <use name="MagneticField/Engine"/>
+  <use name="RecoMTD/TrackExtenderAlpaka"/>
+  <use name="TrackingTools/AnalyticalJacobians"/>
+  <use name="TrackingTools/GeomPropagators"/>
+  <use name="TrackingTools/TrajectoryParametrization"/>
+  <use name="TrackingTools/TrajectoryState"/>
+</bin>
+
+<library file="MtdTimingCompare.cc" name="RecoMTDTrackExtenderAlpakaTestPlugins">
+  <use name="DataFormats/Common"/>
+  <use name="DataFormats/GeometryVector"/>
+  <use name="DataFormats/TrackReco"/>
+  <use name="FWCore/Framework"/>
+  <use name="FWCore/ParameterSet"/>
+  <use name="SimDataFormats/Associations"/>
+  <use name="SimDataFormats/TrackingAnalysis"/>
+  <flags EDM_PLUGIN="1"/>
+</library>

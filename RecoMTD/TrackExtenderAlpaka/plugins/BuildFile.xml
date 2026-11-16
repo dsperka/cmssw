@@ -1,0 +1,37 @@
+<library file="*.cc" name="RecoMTDTrackExtenderAlpakaPlugins">
+  <use name="DataFormats/Common"/>
+  <use name="DataFormats/GeometryVector"/>
+  <use name="DataFormats/MtdTimingSoA"/>
+  <use name="DataFormats/TrackReco"/>
+  <use name="DataFormats/TrackerCommon"/>
+  <use name="DataFormats/TrackerRecHit2D"/>
+  <use name="DataFormats/TrackingRecHit"/>
+  <use name="FWCore/Framework"/>
+  <use name="FWCore/ParameterSet"/>
+  <use name="FWCore/Utilities"/>
+  <use name="Geometry/Records"/>
+  <flags EDM_PLUGIN="1"/>
+</library>
+
+<library file="alpaka/*.cc" name="RecoMTDTrackExtenderAlpakaPluginsPortable">
+  <use name="alpaka"/>
+  <use name="DataFormats/ForwardDetId"/>
+  <use name="DataFormats/MtdTimingSoA"/>
+  <use name="DataFormats/Portable"/>
+  <use name="DataFormats/TrackReco"/>
+  <use name="DataFormats/TrackerRecHit2D"/>
+  <use name="FWCore/ParameterSet"/>
+  <use name="FWCore/Utilities"/>
+  <use name="Geometry/CommonTopologies"/>
+  <use name="Geometry/Records"/>
+  <use name="HeterogeneousCore/AlpakaCore"/>
+  <use name="HeterogeneousCore/AlpakaInterface"/>
+  <use name="MagneticField/Engine"/>
+  <use name="MagneticField/Records"/>
+  <use name="RecoMTD/TrackExtenderAlpaka"/>
+  <use name="RecoMTD/DetLayers"/>
+  <use name="RecoMTD/Records"/>
+  <use name="TrackingTools/DetLayers"/>
+  <flags ALPAKA_BACKENDS="1"/>
+  <flags EDM_PLUGIN="1"/>
+</library>

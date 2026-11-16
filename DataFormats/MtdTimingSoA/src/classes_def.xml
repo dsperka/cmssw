@@ -1,0 +1,6 @@
+<lcgdict>
+  <class name="mtdtiming::MtdTimingHost" rntupleStreamerMode="true"/>
+  <class name="mtdtiming::MtdTimingHost::Layout"/>
+  <class name="mtdtiming::MtdTimingLayout<128, false>"/>
+  <class name="edm::Wrapper<mtdtiming::MtdTimingHost>" splitLevel="0"/>
+</lcgdict>
