@@ -1,0 +1,410 @@
+#include <alpaka/alpaka.hpp>
+
+#include "HeterogeneousCore/AlpakaInterface/interface/config.h"
+#include "HeterogeneousCore/AlpakaInterface/interface/workdivision.h"
+
+#include "WeightedVertexFitterAlgo.h"
+
+//#define DEBUG_RECOVERTEX_PRIMARYVERTEXPRODUCER_FITTERALGO 1
+
+namespace ALPAKA_ACCELERATOR_NAMESPACE {
+  using namespace cms::alpakatools;
+
+  class FitVertices {
+  public:
+    template <alpaka::concepts::Acc TAcc>
+    ALPAKA_FN_ACC void operator()(const TAcc& acc,
+                                  const TrackForVertexDeviceCollection::ConstView tracks,
+                                  VertexDeviceCollection::View vertices,
+                                  VertexScratchCollection::View vertexScratch,
+                                  BeamSpotPOD const* beamSpot,
+                                  bool useBeamSpotConstraint) const {
+#ifdef DEBUG_RECOVERTEX_PRIMARYVERTEXPRODUCER_FITTERALGO
+      if (once_per_block(acc)) {
+        printf("[WeightedVertexFitterAlgo::FitVertices()] In Vertex 0, %i tracks\n", vertices[0].ntracks());
+        for (int itrackInVertex = 0; itrackInVertex < vertices[0].ntracks(); itrackInVertex++) {
+          int itrack = vertexScratch[0].track_id()[itrackInVertex];
+          printf("[WeightedVertexFitterAlgo::FitVertices()] Tracks: %i, %1.9f, %1.9f, %1.9f, %1.9f, %1.9f\n",
+                 itrack,
+                 tracks[itrack].x(),
+                 tracks[itrack].y(),
+                 tracks[itrack].z(),
+                 tracks[itrack].dxy2(),
+                 tracks[itrack].dz2());
+        }
+      }
+#endif
+      // These are the kernel operations themselves
+      const int nTrueVertex = vertices[0].nV();  // Set max true vertex
+      // Magic numbers from https://github.com/cms-sw/cmssw/blob/master/RecoVertex/PrimaryVertexProducer/interface/WeightedMeanFitter.h#L12
+      const float precision = 1e-12;
+      const float precisionsq = 1e-24;
+      float corr_x = 1.2;
+      const float corr_z = 1.4;
+      const int maxIterations = 2;
+      const float muSquare = 9.;
+      // BeamSpot coordinates are initialized to 0, if we use beamSpot, we change them
+      float bserrx = 0.;
+      float bserry = 0.;
+      float bsx = 0.;
+      float bsy = 0.;
+      if (useBeamSpotConstraint) {
+        // beam spot weight 1/sigma^2, as the legacy WeightedMeanFitter (1/cxx)
+        bserrx = beamSpot->beamWidthX < precisionsq ? 1. / (precisionsq)
+                                                    : 1. / (beamSpot->beamWidthX * beamSpot->beamWidthX);
+        bserry = beamSpot->beamWidthY < precisionsq ? 1. / (precisionsq)
+                                                    : 1. / (beamSpot->beamWidthY * beamSpot->beamWidthY);
+        bsx = beamSpot->x;
+        bsy = beamSpot->y;
+        corr_x = 1.0;
+      }
+#ifdef DEBUG_RECOVERTEX_PRIMARYVERTEXPRODUCER_FITTERALGO
+      printf("[WeightedVertexFitterAlgo::FitVertices()] Set-up, beamspot constrains: %1.9f, %1.9f, %1.9f, %1.9f\n",
+             bserrx,
+             bserry,
+             bsx,
+             bsy);
+#endif
+      for (auto i : uniform_elements(
+               acc,
+               nTrueVertex)) {  // By construction nTrueVertex <= 1024, so this will always be a 1 thread to 2 vertex assignment tops
+        int ivertex = vertices[i].order();
+        if (not(vertices[ivertex].isGood()))
+          continue;  // If vertex was killed before, just skip
+                     // Initialize positions and errors to 0
+#ifdef DEBUG_RECOVERTEX_PRIMARYVERTEXPRODUCER_FITTERALGO
+        printf("[WeightedVertexFitterAlgo::FitVertices()] Start vertex %i with %i tracks\n",
+               ivertex,
+               vertices[ivertex].ntracks());
+#endif
+        float x = 0.;
+        float y = 0.;
+        float z = 0.;
+        float errx = 0.;
+        float errz = 0.;
+
+        for (int itrackInVertex = 0; itrackInVertex < vertices[ivertex].ntracks(); itrackInVertex++) {
+          int itrack = vertexScratch[ivertex].track_id()[itrackInVertex];
+          // Transverse error as in the C++ WeightedMeanPrimaryVertexEstimator: the track's own dxy error without the beam
+          // constraint, the error of the impact parameter to the beam line with it
+          const float dxy2 = useBeamSpotConstraint ? tracks[itrack].dxy2() : tracks[itrack].dxy2AtIP();
+          float wxy = dxy2 <= precisionsq ? 1. / precisionsq : 1. / dxy2;
+          float wz = tracks[itrack].dz2() <= precisionsq ? 1. / precisionsq : 1. / tracks[itrack].dz2();
+          x += tracks[itrack].x() * wxy;
+          y += tracks[itrack].y() * wxy;
+          z += tracks[itrack].z() * wz;
+          errx += wxy;  // x and y have the same error due to symmetry
+          errz += wz;
+        }
+        float erry = errx;
+#ifdef DEBUG_RECOVERTEX_PRIMARYVERTEXPRODUCER_FITTERALGO
+        printf(
+            "[WeightedVertexFitterAlgo::FitVertices()] After first iteration, before dividing, %1.9f %1.9f %1.9f %1.9f "
+            "%1.9f \n",
+            x,
+            y,
+            z,
+            errx,
+            errz);
+#endif
+        // Now add the BeamSpot and get first estimation, if no beamspot, this changes nothing
+        x = (x + bsx * bserrx * bserrx) / (bserrx * bserrx + errx);
+        y = (y + bsy * bserry * bserry) / (bserry * bserry + erry);
+        z /= errz;
+#ifdef DEBUG_RECOVERTEX_PRIMARYVERTEXPRODUCER_FITTERALGO
+        printf(
+            "[WeightedVertexFitterAlgo::FitVertices()] After first iteration, after dividing, %1.9f %1.9f %1.9f %1.9f "
+            "%1.9f \n",
+            x,
+            y,
+            z,
+            errx,
+            errz);
+#endif
+        // Weights and square weights for iteration
+        float s_wx, s_wz;
+        errx = 1 / errx;
+        erry = 1 / erry;
+        errz = 1 / errz;
+        int ndof;
+        // Run iterative weighted mean fitter
+        int niter = 0;
+        float old_x;
+        float old_y;
+        float old_z;
+        bool fitFailed = false;
+        while ((niter++) < maxIterations) {
+#ifdef DEBUG_RECOVERTEX_PRIMARYVERTEXPRODUCER_FITTERALGO
+          printf("[WeightedVertexFitterAlgo::FitVertices()] At iteration %i, errs are %1.15f %1.15f %1.15f\n",
+                 niter,
+                 errx,
+                 erry,
+                 errz);
+#endif
+          old_x = x;
+          old_y = y;
+          old_z = z;
+          s_wx = 0.;
+          s_wz = 0.;
+          x = 0.;
+          y = 0.;
+          z = 0.;
+          ndof = 0;
+          for (int itrackInVertex = 0; itrackInVertex < vertices[ivertex].ntracks(); itrackInVertex++) {
+            int itrack = vertexScratch[ivertex].track_id()[itrackInVertex];
+            // Position (ref point) of the track
+            double tx = tracks[itrack].x();
+            double ty = tracks[itrack].y();
+            double tz = tracks[itrack].z();
+            // Momentum of the track
+            double px = tracks[itrack].px();
+            double py = tracks[itrack].py();
+            double pz = tracks[itrack].pz();
+            // To compute the PCA of the track to the current vertex
+            double pnorm2 = px * px + py * py + pz * pz;
+            // This is the 'time' needed to move from the ref point to the PCA scalar product of (x_v-x_t)*p_t over magnitude squared of p_t
+            double t = (px * (old_x - tx) + py * (old_y - ty) + pz * (old_z - tz)) / pnorm2;
+#ifdef DEBUG_RECOVERTEX_PRIMARYVERTEXPRODUCER_FITTERALGO
+            printf(
+                "[WeightedVertexFitterAlgo::FitVertices()] Track x: %1.9f, y: %1.9f, z:%1.9f, px: %1.9f, py: %1.9f, "
+                "pz: %1.9f, "
+                "t:%1.9f\n",
+                tx,
+                ty,
+                tz,
+                px,
+                py,
+                pz,
+                t);
+#endif
+            // Advance the track until the PCA
+            tx += px * t;
+            ty += py * t;
+            tz += pz * t;
+            const float dxy2 = useBeamSpotConstraint ? tracks[itrack].dxy2() : tracks[itrack].dxy2AtIP();
+            float wx = dxy2 <= precisionsq ? 1. / precisionsq : 1. / dxy2;
+            float wz = tracks[itrack].dz2() <= precisionsq ? 1. / precisionsq : 1. / tracks[itrack].dz2();
+#ifdef DEBUG_RECOVERTEX_PRIMARYVERTEXPRODUCER_FITTERALGO
+            printf("[WeightedVertexFitterAlgo::FitVertices()] Track wx: %1.9f, wz: %1.9f\n", wx, wz);
+            printf("[WeightedVertexFitterAlgo::FitVertices()] Track sigmas: %1.3f %1.3f %1.3f\n",
+                   (tx - old_x) * (tx - old_x) / (1 / wx + errx),
+                   (ty - old_y) * (ty - old_y) / (1 / wx + erry),
+                   (tz - old_z) * (tz - old_z) / (1 / wz + errz));
+            printf("[WeightedVertexFitterAlgo::FitVertices()] Track bools: %i %i %i\n",
+                   ((tx - old_x) * (tx - old_x) / (1 / wx + errx) < muSquare),
+                   ((ty - old_y) * (ty - old_y) / (1 / wx + erry) < muSquare),
+                   ((tz - old_z) * (tz - old_z) / (1 / wz + errz) < muSquare));
+#endif
+            if (((tx - old_x) * (tx - old_x) / (1 / wx + errx) < muSquare) &&
+                ((ty - old_y) * (ty - old_y) / (1 / wx + erry) < muSquare) &&
+                ((tz - old_z) * (tz - old_z) / (1 / wz + errz) <
+                 muSquare)) {  // I.e., old coordinates of PCA are within 3 sigma of current vertex position, keep the track
+              ndof += 1;
+              vertexScratch[ivertex].track_weight()[itrackInVertex] = 1;
+              s_wx += wx;
+              s_wz += wz;
+            } else {  // Otherwise, discard track
+              vertexScratch[ivertex].track_weight()[itrackInVertex] = 0;
+              wx = 0.;
+              wz = 0.;
+            }
+#ifdef DEBUG_RECOVERTEX_PRIMARYVERTEXPRODUCER_FITTERALGO
+            printf("[WeightedVertexFitterAlgo::FitVertices()] Track %i weights after %1.10f, %1.10f\n",
+                   itrackInVertex,
+                   wx,
+                   wz);
+#endif
+            // Here, will only change if track is within 3 sigma
+            x += tx * wx;
+            y += ty * wx;
+            z += tz * wz;
+#ifdef DEBUG_RECOVERTEX_PRIMARYVERTEXPRODUCER_FITTERALGO
+            printf("[WeightedVertexFitterAlgo::FitVertices()] Track adds x: %1.9f, y: %1.9f z: %1.9f\n",
+                   tx * wx,
+                   ty * wx,
+                   tz * wz);
+#endif
+          }  // end for
+// After all tracks, add BS uncertainties, will do nothing if not used
+#ifdef DEBUG_RECOVERTEX_PRIMARYVERTEXPRODUCER_FITTERALGO
+          printf(
+              "[WeightedVertexFitterAlgo::FitVertices()] Before adding BS in %i iteration %1.9f %1.9f %1.9f %1.9f "
+              "%1.9f %1.9f \n",
+              niter,
+              x,
+              y,
+              z,
+              s_wx,
+              s_wx,
+              s_wz);
+#endif
+          x += bsx * bserrx;
+          y += bsy * bserry;
+#ifdef DEBUG_RECOVERTEX_PRIMARYVERTEXPRODUCER_FITTERALGO
+          printf("[WeightedVertexFitterAlgo::FitVertices()] BS adds x: %1.9f, y: %1.9f\n", bsx * bserrx, bsy * bserry);
+#endif
+          float s_wy = s_wx;
+          s_wx += bserrx;
+          s_wy += bserry;
+          if (s_wx == 0. || s_wy == 0. || s_wz == 0.) {
+            fitFailed = true;
+            break;
+          }
+#ifdef DEBUG_RECOVERTEX_PRIMARYVERTEXPRODUCER_FITTERALGO
+          printf(
+              "[WeightedVertexFitterAlgo::FitVertices()] Before dividing %i iteration %1.9f %1.9f %1.9f %1.9f %1.9f "
+              "%1.9f \n",
+              niter,
+              x,
+              y,
+              z,
+              s_wx,
+              s_wy,
+              s_wz);
+#endif
+          x /= s_wx;
+          y /= s_wy;
+          z /= s_wz;
+          errx = 1 / s_wx;
+          errz = 1 / s_wz;
+          erry = 1 / s_wy;
+#ifdef DEBUG_RECOVERTEX_PRIMARYVERTEXPRODUCER_FITTERALGO
+          printf(
+              "[WeightedVertexFitterAlgo::FitVertices()] After dividing %i iteration %1.9f %1.9f %1.9f %1.9f %1.9f \n",
+              niter,
+              x,
+              y,
+              z,
+              errx,
+              errz);
+          printf(
+              "[WeightedVertexFitterAlgo::FitVertices()] Compare old and new: %1.9f %1.9f, %1.9f %1.9f, %1.9f %1.9f \n",
+              old_x,
+              x,
+              old_y,
+              y,
+              old_z,
+              z);
+#endif
+          if ((alpaka::math::abs(acc, old_x - x) < precision) && (alpaka::math::abs(acc, old_y - y) < precision) &&
+              (alpaka::math::abs(acc, old_z - z) < precision))
+            break;  // If good enough, stop the iterations
+        }  // end while
+        if (fitFailed) {
+          vertices[ivertex].isGood() = false;
+          continue;
+        }
+        // Assign everything back in global memory to get the fitted vertex!
+        errx *= corr_x * corr_x;
+        erry *= corr_x * corr_x;
+        errz *= corr_z * corr_z;
+        vertices[ivertex].x() = x;
+        vertices[ivertex].y() = y;
+        vertices[ivertex].z() = z;
+        vertices[ivertex].errx() = errx;
+        vertices[ivertex].erry() = erry;
+        vertices[ivertex].errz() = errz;
+        vertices[ivertex].ndof() = ndof > 1 ? (2 * ndof - 3) : 0.00001;
+        // Last get the chi square of the final vertex fit
+        double chi2 = 0.;
+        for (int itrackInVertex = 0; itrackInVertex < vertices[ivertex].ntracks(); itrackInVertex++) {
+          int itrack = vertexScratch[ivertex].track_id()[itrackInVertex];
+          // Position (ref point) of the track
+          float tx = tracks[itrack].x();
+          float ty = tracks[itrack].y();
+          float tz = tracks[itrack].z();
+          float wx = useBeamSpotConstraint ? tracks[itrack].dxy2() : tracks[itrack].dxy2AtIP();
+          float wz = tracks[itrack].dz2();
+          chi2 +=
+              (tx - x) * (tx - x) / (errx + wx) + (ty - y) * (ty - y) / (erry + wx) +
+              (tz - z) * (tz - z) /
+                  (errz +
+                   wz);  // chi2 doesn't use the PCA distance, but the ref point coordinates as in https://github.com/cms-sw/cmssw/blob/master/RecoVertex/PrimaryVertexProducer/interface/WeightedMeanFitter.h#L316
+        }  // end for
+        vertices[ivertex].chi2() = chi2;
+#ifdef DEBUG_RECOVERTEX_PRIMARYVERTEXPRODUCER_FITTERALGO
+        printf(
+            "[WeightedVertexFitterAlgo::FitVertices()] Vertex %i, x: %1.9f, y:%1.9f, z:%1.9f, errx:%1.9f, errz:%1.9f, "
+            "chi2:%1.9f, "
+            "ndof:%1.9f\n",
+            i,
+            vertices[ivertex].x(),
+            vertices[ivertex].y(),
+            vertices[ivertex].z(),
+            vertices[ivertex].errx(),
+            vertices[ivertex].errz(),
+            vertices[ivertex].chi2(),
+            vertices[ivertex].ndof());
+#endif
+      }  // end for (stride) loop
+    }  // operator()
+  };  // class FitVertices
+
+  // Copies the track lists of the good vertices from the dense per-vertex scratch to the compact jagged list that is put
+  // in the event: the tracks of the vertex in slot v are the entries first_track(v) to first_track(v)+ntracks(v)-1
+  class CompactVertexTracks {
+  public:
+    template <alpaka::concepts::Acc TAcc>
+    ALPAKA_FN_ACC void operator()(const TAcc& acc,
+                                  VertexDeviceCollection::View vertices,
+                                  VertexScratchCollection::ConstView vertexScratch,
+                                  VertexTrackDeviceCollection::View vertexTracks) const {
+      const int nTrueVertex = vertices[0].nV();
+      const int capacity = vertexTracks.metadata().size();
+      if (once_per_block(acc)) {
+        int offset = 0;
+        for (int i = 0; i < nTrueVertex; i++) {
+          const int ivertex = vertices[i].order();
+          vertices[ivertex].first_track() = offset;
+          if (not vertices[ivertex].isGood())
+            continue;
+          // Cannot happen with unique tracks per vertex, but never write beyond the list
+          if (offset + vertices[ivertex].ntracks() > capacity)
+            vertices[ivertex].ntracks() = capacity - offset;
+          offset += vertices[ivertex].ntracks();
+        }
+      }
+      alpaka::syncBlockThreads(acc);
+      for (auto i : uniform_elements(acc, nTrueVertex)) {
+        const int ivertex = vertices[i].order();
+        if (not vertices[ivertex].isGood())
+          continue;
+        const int first = vertices[ivertex].first_track();
+        for (int it = 0; it < vertices[ivertex].ntracks(); it++) {
+          vertexTracks[first + it].track_id() = vertexScratch[ivertex].track_id()[it];
+          vertexTracks[first + it].track_weight() = vertexScratch[ivertex].track_weight()[it];
+        }
+      }
+    }
+  };  // class CompactVertexTracks
+
+  WeightedVertexFitterAlgo::WeightedVertexFitterAlgo(Queue& queue, FitterParameters fPar)
+      : useBeamSpotConstraint_(fPar.useBeamSpotConstraint) {}  // WeightedVertexFitterAlgo::WeightedVertexFitterAlgo
+
+  void WeightedVertexFitterAlgo::fit(Queue& queue,
+                                     const TrackForVertexDeviceCollection& deviceTrack,
+                                     VertexDeviceCollection& deviceVertex,
+                                     VertexScratchCollection& vertexScratch,
+                                     VertexTrackDeviceCollection& vertexTracks,
+                                     const BeamSpotDevice& deviceBeamSpot) {
+    const int nVertexToFit =
+        1024;  // Right now it executes for all 1024 vertex, even if vertex collection is empty (in which case the kernel passes)
+    const int threadsPerBlock = 32;
+    const int blocks = divide_up_by(nVertexToFit, threadsPerBlock);
+    alpaka::exec<Acc1D>(queue,
+                        make_workdiv<Acc1D>(blocks, threadsPerBlock),
+                        FitVertices{},
+                        deviceTrack.view(),
+                        deviceVertex.view(),
+                        vertexScratch.view(),
+                        deviceBeamSpot.data(),
+                        useBeamSpotConstraint_);
+    // The fit is complete: compact the track lists into the persistent product
+    alpaka::exec<Acc1D>(queue,
+                        make_workdiv<Acc1D>(1, threadsPerBlock),
+                        CompactVertexTracks{},
+                        deviceVertex.view(),
+                        vertexScratch.const_view(),
+                        vertexTracks.view());
+  }  // WeightedVertexFitterAlgo::fit
+}  // namespace ALPAKA_ACCELERATOR_NAMESPACE

@@ -1,0 +1,50 @@
+#ifndef DataFormats_VertexSoA_interface_TrackForVertexSoA_h
+#define DataFormats_VertexSoA_interface_TrackForVertexSoA_h
+
+#include <Eigen/Core>
+#include <Eigen/Dense>
+#include "DataFormats/SoATemplate/interface/SoACommon.h"
+#include "DataFormats/SoATemplate/interface/SoALayout.h"
+
+namespace reco {
+  GENERATE_SOA_LAYOUT(TrackForVertexSoALayout,
+                      // columns: one value per element
+                      SOA_COLUMN(float, dxy2),
+                      SOA_COLUMN(float, dxy2AtIP),
+                      SOA_COLUMN(float, dz2),
+                      SOA_COLUMN(float, oneoverdz2),
+                      SOA_COLUMN(float, weight),
+                      SOA_COLUMN(bool, isGood),
+                      SOA_COLUMN(int, order),
+                      SOA_COLUMN(int, ttIndex),
+
+                      SOA_COLUMN(float, x),
+                      SOA_COLUMN(float, y),
+                      SOA_COLUMN(float, z),
+
+                      SOA_COLUMN(float, xAtIP),
+                      SOA_COLUMN(float, yAtIP),
+
+                      SOA_COLUMN(float, dx),
+                      SOA_COLUMN(float, dy),
+                      SOA_COLUMN(float, dz),
+
+                      SOA_COLUMN(float, dxError),
+                      SOA_COLUMN(float, dyError),
+                      SOA_COLUMN(float, dzError),
+
+                      SOA_COLUMN(float, px),
+                      SOA_COLUMN(float, py),
+                      SOA_COLUMN(float, pz),
+
+                      // The per-track scratch of the clusterizer (aux1, aux2 and the track-vertex matrices) is not part of
+                      // this layout: it lives in a device-only collection, see TrackForVertexScratch.h in the plugin
+
+                      // scalars: one value for the whole structure
+                      SOA_SCALAR(int32_t, nT),
+                      SOA_SCALAR(float, totweight))
+
+  using TrackForVertexSoA = TrackForVertexSoALayout<>;
+}  // namespace reco
+
+#endif  // DataFormats_VertexSoA_interface_TrackForVertexSoA_h
