@@ -8,6 +8,7 @@ How to reproduce the checks of the Alpaka MTD chain: the MTD track timing (no re
 | `devicechain/` | the device chain gives exactly the same numbers as the host code it replaces (100-event skim) |
 | `validation/` | physics effect on the 4D vertices and the MTD track validation, legacy vs Alpaka (1000 events) |
 | `timing/` | time per event of the full reconstruction and per module, legacy vs Alpaka (300 events, 1 thread) |
+| `refit/` | what the legacy refit changes: momentum, path length and t0 against the truth (100-event skim) |
 | `testMtdTimingMath.cpp`, `MtdTimingCompare.cc`, `compare_cfg.py` | unit test of the track math; per-track legacy vs Alpaka dump |
 
 ## Setup
@@ -80,11 +81,15 @@ keeps the original track: the path in the tracker is computed from the helix bet
 approach and the outermost hit, and the momentum is the original one. Consequences:
 
 - the output tracks are copies of the input tracks with the MTD hit added (`trackClones`), not refitted;
-- σ(TOF) is about 35% larger (the momentum error of the original track is larger than after the refit);
-- the t0 values differ slightly, which in turn moves the 4D vertexing a little (+0.6 fake and +0.6 split
-  vertices per event out of ~130, real vertices unchanged).
+- σ(TOF) is 1–15% larger track by track (median; the refit makes the quoted momentum error 1–15% smaller);
+- the path length differs by more than 1 cm for 27% of the BTL tracks and 14% of the ETL tracks (mostly at
+  low momentum), so the t0 values differ, which in turn moves the 4D vertexing a little (+0.6 fake and +0.6
+  split vertices per event out of ~130, real vertices unchanged).
 
-A refit option for low-pt tracks (where it matters most) is not implemented.
+Against the truth (section 4), the refit does not make the momentum more accurate: it is about the same in
+BTL, worse in ETL, and the tails get larger in both. Where the path lengths differ by more than 5 cm (8% of
+the BTL tracks, mostly below 1 GeV), the Alpaka t0 is the one closer to the true time for 74% of the pions. So no
+refit (or an approximate one) is planned.
 On CPU the MTD time, path and hit choice were checked against legacy track by track (`MtdTimingCompare.cc`);
 the BDT output is identical to `MTDTrackQualityMVAProducer` on the same inputs.
 
@@ -223,3 +228,70 @@ Results, 300 events, 1 thread, Intel Xeon W-2155 (turbo on, governor powersave),
 
 The input is not a limit (reading takes 1.66 s of 34–35 s). The unchanged modules agree within 0.4%, which is
 the run-to-run noise of this machine (the core clock moves with turbo and temperature; mean 3790–3854 MHz).
+
+## 4. Refit study (`refit/`)
+
+Legacy refits each track with its MTD hit; the Alpaka version does not. This study checks what the refit
+changes, track by track, and which version is closer to the truth. Input: the skim of section 1.
+
+```
+mkdir work && cd work
+../refit/run_refit_study.sh /path/to/skim.root 8
+```
+
+- the Alpaka MTD timing on the skim (`devicechain/chain_cfg.py mode=new`) → `chain.root`;
+- `make_table.py` (FWLite): one row per track with an MTD time in both legacy and Alpaka: original and
+  refitted momentum and error at the point of closest approach (the refitted tracks have the same index as
+  `generalTracks`), the legacy and Alpaka value maps, and the closest simulated particle (same charge,
+  ΔR < 0.005, |Δpt/pt| < 0.3) with its momentum, type and production time → `table.npz`;
+- `analyze_refit.py` → `refit.txt`: what the refit does to the momentum, refit vs truth, legacy vs Alpaka
+  inputs of the time of flight;
+- `analyze_truth.py` → `truth.txt`: t0 (pion mass) minus the true production time, for simulated pions from
+  in-time collisions produced at the beam line.
+
+Results, 100 events: 306k tracks with an MTD time in both, 120k matched to a simulated particle, 89k of them
+prompt in-time pions.
+
+**The refit barely changes the quoted momentum error, and legacy σ(TOF) is exactly the refitted one.** The
+refitted σ(p) is 0.94–0.99 of the original in BTL and 0.85–0.96 in ETL (median per track); the σ(p) implied
+by legacy σ(TOF) equals the refitted σ(p) for every track, and the legacy momentum map is the refitted
+momentum. So Alpaka σ(TOF) / legacy (median per track) is 1.01–1.06 in BTL and 1.02–1.15 in ETL.
+
+**The refitted momentum is not closer to the truth.** |p/p_true − 1| in %, original → refit:
+
+| p [GeV], region | 68% of tracks within | 95% within | tracks off by more than 10% |
+|---|---|---|---|
+| 0.7–1, BTL | 1.05 → 1.10 | 3.7 → 7.8 | 2.9 → 4.5 |
+| 1–1.5, BTL | 0.99 → 1.10 | 3.2 → 5.6 | 2.0 → 3.1 |
+| 2–3, BTL | 0.95 → 0.97 | 2.7 → 3.6 | 0.5 → 1.0 |
+| 1–1.5, ETL | 2.3 → 3.8 | 21 → 26 | 15 → 21 |
+| 2–3, ETL | 2.8 → 4.0 | 19 → 36 | 10 → 21 |
+| above 5, ETL | 3.1 → 3.6 | 8.7 → 20 | 3.5 → 12 |
+
+The pulls ((p − p_true)/σ(p)) also get wider after the refit. Matching is by direction only, so part of the
+ETL tails are wrong matches; they are the same tracks for the original and the refit. The true momentum is
+taken at production, before energy loss.
+
+**Path length.** The medians agree, but the path differs by more than 1 cm (33 ps) for 27% of the BTL and
+14% of the ETL tracks, and by more than 5 cm for 8% and 3% (19% of BTL tracks at 0.7–1 GeV). Legacy and
+Alpaka pick the same MTD hit for 97.6% of the pions.
+
+**t0 against the true time** (pions, same MTD hit, BTL offset removed):
+
+| path difference | tracks | median \|t0 − t_true\| legacy | Alpaka | Alpaka closer |
+|---|---|---|---|---|
+| BTL, 1–5 cm | 5778 | 272 ps | 273 ps | 49% |
+| BTL, more than 5 cm (median p 0.86 GeV) | 2612 | 833 ps | 308 ps | 74% |
+| ETL, 1–5 cm | 1836 | 269 ps | 266 ps | 52% |
+| ETL, more than 5 cm | 455 | 428 ps | 396 ps | 52% |
+
+Width of t0 − t_true (half of the central 68%), all pions: BTL 0.7–1 GeV 541 ps legacy, 421 ps Alpaka;
+1–1.5 GeV 344 and 352 ps; above 1.5 GeV and all of ETL the same within a few ps. Where the two path lengths
+disagree a lot, it is the legacy refitted trajectory that is wrong.
+
+**BTL times are about 740 ps late, in legacy and Alpaka alike.** t0 − t_true peaks at +741 ps in BTL and +4 ps
+in ETL. It comes from the BTL hit time itself (t_mtd − t_true 6.38 ns against a time of flight of 5.53 ns,
+medians), for signal and pileup alike. A 4D vertex with BTL and ETL tracks sees them disagree by about
+0.7 ns. Not understood yet: to be checked against another release or with the MTD experts. Also in both:
+σ(t0) is large (median 1.33 ns in BTL, 0.29 ns in ETL, against 23–26 ps for the MTD hit), so it must include
+the unknown-mass term.
