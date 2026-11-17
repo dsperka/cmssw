@@ -160,6 +160,8 @@ from FWCore.ParameterSet.VarParsing import VarParsing
 options = VarParsing('analysis')
 options.register('timing', 'alpaka', VarParsing.multiplicity.singleton, VarParsing.varType.string,
                  'legacy: TrackExtenderWithMTD with refit; alpaka: Alpaka MTD timing module (no refit)')
+options.register('vertices', 'legacy', VarParsing.multiplicity.singleton, VarParsing.varType.string,
+                 'legacy: host 3D vertices and tofPID4DnoPID; alpaka: on the device (needs timing=alpaka)')
 options.register('threads', 8, VarParsing.multiplicity.singleton, VarParsing.varType.int, 'number of threads')
 options.register('output', 'mtdValidation_DQMIO.root', VarParsing.multiplicity.singleton, VarParsing.varType.string,
                  'DQMIO output file (outputFile would get a _numEventN suffix)')
@@ -170,8 +172,13 @@ process.maxEvents.input = options.maxEvents
 process.DQMoutput.fileName = 'file:' + options.output
 process.options.numberOfThreads = options.threads
 
+if options.vertices not in ('legacy', 'alpaka') or (options.vertices == 'alpaka' and options.timing != 'alpaka'):
+    raise ValueError('vertices must be legacy or alpaka, and alpaka needs timing=alpaka')
 if options.timing == 'alpaka':
     from RecoMTD.TrackExtenderAlpaka.customizeMtdTimingAlpaka import customizeMtdTimingAlpaka
     process = customizeMtdTimingAlpaka(process)
+    if options.vertices == 'alpaka':
+        from RecoMTD.TrackExtenderAlpaka.customizeMtdTimingAlpaka import customizeMtdDeviceVertices
+        process = customizeMtdDeviceVertices(process)
 elif options.timing != 'legacy':
     raise ValueError('timing must be legacy or alpaka, not %s' % options.timing)
