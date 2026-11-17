@@ -69,16 +69,13 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE::mtdtiming {
         // ---- candidate evaluation, common to BTL and ETL: keep the best hit by the legacy ordering
         TofInput tin = tofInputOf(t, 0.f);
         int32_t best = -1;
-        int nEval = 0, nEstOk = 0;
         float bestEst = 0.f, bestTchi2 = 0.f, bestPath = 0.f;
         auto evalHit = [&](int32_t h, double tx, double ty, double txx, double txy, double tyy, double s) {
           auto const hit = hits[h];
           float const est =
               float(chi2Local(hit.lx() - tx, hit.ly() - ty, txx + hit.exx(), txy + hit.exy(), tyy + hit.eyy()));
-          ++nEval;
           if (!(est <= params.estimatorMaxChi2))
             return;
-          ++nEstOk;
           tin.gapPath = float(std::abs(s));
           float const tchi2 = timeChi2(tin, hit.time(), hit.timeError(), params.bsTimeSpread);
           if (best < 0 || betterHit(est, tchi2, bestEst, bestTchi2)) {
@@ -110,9 +107,6 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE::mtdtiming {
             if (std::abs(cpos.z) >= dz)
               continue;
           }
-          if (params.skipCandidates)
-            continue;
-
           // a module is "compatible" if the crossing is inside its bounds widened by nSig track sigmas;
           // then all its hits are candidates. Returns the local x and errors of the crossing.
           auto visitModule = [&](int32_t m, double& outX, double& outSx, double& outSy) -> bool {
@@ -300,8 +294,6 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE::mtdtiming {
                 evalHit(h, tx, ty, txx, txy, tyy, s);
             }
           };
-          if (params.skipCandidates)
-            continue;
           int const ix0 = CellGrid::xyBin(float(cpos.x - hx)), ix1 = CellGrid::xyBin(float(cpos.x + hx));
           int const iy0 = CellGrid::xyBin(float(cpos.y - hy)), iy1 = CellGrid::xyBin(float(cpos.y + hy));
           for (int iy = iy0; iy <= iy1; ++iy)
@@ -309,8 +301,6 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE::mtdtiming {
               visit(CellGrid::etlCell(layer, ix, iy));
         }
 
-        if (params.debug > 0)
-          printf("CAND %d %d %d %d %d %.5g %.5g\n", params.debug, itrk, layer, nEval, nEstOk, best >= 0 ? bestEst : -1.f, best >= 0 ? bestTchi2 : -1.f);
         // ---- 4) legacy: only the best candidate is tested against the cuts
         float const chi2Cut = layer == 0 ? params.btlChi2Cut : params.etlChi2Cut;
         float const tchi2Cut = layer == 0 ? params.btlTimeChi2Cut : params.etlTimeChi2Cut;
@@ -477,16 +467,62 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE::mtdtiming {
     }
   };
 
+  // ------------------------------------------------------------------ kernel 3
+  // MTDTrackQualityMVA: the same cuts, inputs and default (-1)
+  class QualityKernel {
+  public:
+    ALPAKA_FN_ACC void operator()(Acc1D const& acc,
+                                  MtdTrackInSoA::ConstView tracks,
+                                  MtdBdtSoA::ConstView bdt,
+                                  MtdTimingSoA::View out) const {
+      for (int32_t i : uniform_elements(acc, tracks.metadata().size())) {
+        auto const t = tracks[i];
+        auto o = out[i];
+        o.mva() = -1.f;
+        double const aeta = std::abs(t.eta());
+        if (aeta > 3. || (aeta <= 1.5 && t.pt() < 0.7) || (aeta > 1.5 && t.pt() < 0.2))
+          continue;
+        if (!(o.tmtd() > 0))
+          continue;
+        // outermost hit position, as filled by MtdTimingToValueMaps
+        bool const btl = o.btlHit() >= 0, etl = o.etlHit1() >= 0;
+        float outermost;
+        if (btl || etl)
+          outermost = btl ? t.outerRadius() : t.outerZ();
+        else
+          outermost = aeta < 1.5f ? t.outerRadius() : t.outerZ();
+        float const vars[kNBdtVars] = {float(t.pt()),
+                                       float(t.eta()),
+                                       t.phi(),
+                                       t.dzBS(),
+                                       t.dxyBS(),
+                                       t.chi2(),
+                                       t.ndof(),
+                                       float(t.npixBarrel()),
+                                       float(t.npixEndcap()),
+                                       o.btlChi2(),
+                                       o.btlTimeChi2(),
+                                       o.etlChi2(),
+                                       o.etlTimeChi2(),
+                                       o.tmtd(),
+                                       o.sigmatmtd(),
+                                       o.pathLength(),
+                                       outermost};
+        o.mva() = bdtQuality(bdt, vars);
+      }
+    }
+  };
+
   void runMtdTiming(Queue& queue,
                     MatchParams const& params,
-                    TrackInDevice const& tracks,
-                    HitInDevice const& hits,
-                    CellDevice const& cells,
-                    PlaneDevice const& rods,
-                    PlaneDevice const& modules,
+                    MtdEventInputSoA::ConstView input,
+                    MtdBtlGeometrySoA::ConstView geometry,
+                    MtdBdtSoA::ConstView bdt,
                     RecordDevice& records,
                     MtdTimingDevice& out) {
-    int32_t const nTracks = tracks.view().metadata().size();
+    auto const tracks = input.tracks();
+    auto const hits = input.hits();
+    int32_t const nTracks = tracks.metadata().size();
     if (nTracks == 0)
       return;
     constexpr uint32_t threads = 64;
@@ -495,22 +531,23 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE::mtdtiming {
         queue,
         wd1,
         MatchHitsKernel{},
-        tracks.const_view(),
-        hits.const_view(),
-        cells.const_view(),
-        rods.const_view(),
-        modules.const_view(),
+        tracks,
+        hits,
+        input.cells(),
+        geometry.rods(),
+        geometry.modules(),
         records.view(),
         params);
     auto const wd2 = make_workdiv<Acc1D>(divide_up_by(nTracks, threads), threads);
     alpaka::exec<Acc1D>(queue,
                         wd2,
                         FinishTimingKernel{},
-                        tracks.const_view(),
-                        hits.const_view(),
+                        tracks,
+                        hits,
                         records.const_view(),
                         out.view(),
                         params);
+    alpaka::exec<Acc1D>(queue, wd2, QualityKernel{}, tracks, bdt, out.view());
   }
 
 }  // namespace ALPAKA_ACCELERATOR_NAMESPACE::mtdtiming

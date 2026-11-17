@@ -1,3 +1,7 @@
 #include "DataFormats/Common/interface/Wrapper.h"
 #include "DataFormats/MtdTimingSoA/interface/MtdTimingHost.h"
 #include "DataFormats/MtdTimingSoA/interface/MtdTimingSoA.h"
+#include "DataFormats/MtdTimingSoA/interface/MtdEventInputHost.h"
+#include "DataFormats/MtdTimingSoA/interface/MtdEventInputSoA.h"
+#include "DataFormats/MtdTimingSoA/interface/TofPidHost.h"
+#include "DataFormats/MtdTimingSoA/interface/TofPidSoA.h"

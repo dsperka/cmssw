@@ -16,6 +16,7 @@
 
 <library file="alpaka/*.cc" name="RecoVertexPrimaryVertexProducerPluginsPortable">
   <use name="alpaka"/>
+  <use name="DataFormats/MtdTimingSoA"/>
   <use name="DataFormats/Portable"/>
   <use name="DataFormats/SoATemplate"/>
   <use name="FWCore/MessageLogger"/>
@@ -23,6 +24,7 @@
   <use name="FWCore/Utilities"/>
   <use name="HeterogeneousCore/AlpakaCore"/>
   <use name="HeterogeneousCore/AlpakaInterface"/>
+  <use name="vdt_headers"/>
   <flags ALPAKA_BACKENDS="1"/>
   <flags EDM_PLUGIN="1"/>
   <flags CUDA_FLAGS="-Xptxas -maxrregcount=100"/>

@@ -4,9 +4,10 @@ from RecoVertex.PrimaryVertexProducer.OfflinePrimaryVertices_cfi import offlineP
 # Primary vertices with the Alpaka implementation of the deterministic annealing in blocks
 # (see Configuration.ProcessModifiers.vertexInBlocksAlpaka_cff).
 #
-#   pvTracksSoA --\
-#   pvBeamSpotSoA -+-> pvVertexSoA       -> unsortedOfflinePrimaryVerticesFromSoA        (collection without beam constraint)
-#                  +-> pvVertexSoAWithBS -> unsortedOfflinePrimaryVerticesFromSoAWithBS   (collection with beam constraint)
+#   pvTracksSoA -+-> pvVertexSoA       -> unsortedOfflinePrimaryVerticesFromSoA        (collection without beam constraint)
+#                +-> pvVertexSoAWithBS -> unsortedOfflinePrimaryVerticesFromSoAWithBS   (collection with beam constraint)
+#
+# The beam spot (offlineBeamSpot) is read on the host and passed to the fit kernel by value.
 #
 # The two converted collections replace the "" and "WithBS" collections of unsortedOfflinePrimaryVertices.
 
@@ -23,13 +24,10 @@ pvTracksSoA = cms.EDProducer("PortableTrackSoAProducer@alpaka",
 from Configuration.Eras.Modifier_phase2_tracker_cff import phase2_tracker
 phase2_tracker.toModify(pvTracksSoA, TkFilterParameters = dict(maxEta = 4.0))
 
-pvBeamSpotSoA = cms.EDProducer("BeamSpotDeviceProducer@alpaka",
-    src = cms.InputTag("offlineBeamSpot")
-)
-
 pvVertexSoA = cms.EDProducer("PrimaryVertexProducerPortable@alpaka",
     TrackLabel = cms.InputTag("pvTracksSoA"),
-    BeamSpotLabel = cms.InputTag("pvBeamSpotSoA"),
+    inputType = cms.string("tracks"),
+    BeamSpotLabel = cms.InputTag("offlineBeamSpot"),
     blockOverlap = cms.double(0.50),
     blockSize = cms.int32(512),
     TkFitterParameters = cms.PSet(

@@ -109,7 +109,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
   TracksForDAInBlocksAlgo::TracksForDAInBlocksAlgo() {}  // TracksForDAInBlocksAlgo::TracksForDAInBlocksAlgo
 
   void TracksForDAInBlocksAlgo::createBlocks(Queue& queue,
-                                             const TrackForVertexDeviceCollection& inputTracks,
+                                             ::reco::TrackForVertexSoA::ConstView inputTracks,
                                              TrackForVertexDeviceCollection& trackInBlocks,
                                              int32_t bSize,
                                              double bOverlap) {
@@ -118,7 +118,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
     alpaka::exec<Acc1D>(queue,
                         make_workdiv<Acc1D>(blocks, threadsPerBlock),
                         CreateBlocksKernel{},
-                        inputTracks.view(),
+                        inputTracks,
                         trackInBlocks.view(),
                         bOverlap,
                         bSize);

@@ -1,7 +1,14 @@
+#include <optional>
+
 #include "DataFormats/VertexSoA/interface/alpaka/VertexDeviceCollection.h"
 #include "DataFormats/VertexSoA/interface/alpaka/VertexTrackDeviceCollection.h"
 #include "DAInBlocksScratch.h"
-#include "DataFormats/BeamSpot/interface/alpaka/BeamSpotDevice.h"
+#include "DataFormats/BeamSpot/interface/BeamSpot.h"
+#include "DataFormats/MtdTimingSoA/interface/MtdEventInputHost.h"
+#include "DataFormats/MtdTimingSoA/interface/alpaka/MtdEventInputDevice.h"
+#include "DataFormats/MtdTimingSoA/interface/alpaka/MtdTimingDevice.h"
+#include "DataFormats/VertexSoA/interface/TrackForVertexHostCollection.h"
+#include "DataFormats/VertexSoA/interface/alpaka/TrackForVertexDeviceCollection.h"
 #include "FWCore/ParameterSet/interface/ConfigurationDescriptions.h"
 #include "FWCore/ParameterSet/interface/ParameterSet.h"
 #include "FWCore/ParameterSet/interface/ParameterSetDescription.h"
@@ -13,37 +20,58 @@
 #include "TracksForDAInBlocksAlgo.h"
 #include "DAInBlocksClusterizerAlgo.h"
 #include "WeightedVertexFitterAlgo.h"
+#include "VertexTimeAlgo.h"
 
 namespace ALPAKA_ACCELERATOR_NAMESPACE {
 
-  // Reading nT() directly on host is undefined behavior on a real device (it's device
-  // memory); only "works" by luck on SerialSync, where Device == DevHost.
-  template <typename TColl>
-  int32_t readNTOnHost(Queue& queue, TColl const& deviceTracks) {
-    if constexpr (std::is_same_v<Device, alpaka_common::DevHost>) {
-      return deviceTracks.view().nT();
-    } else {
-      auto hostTracks = cms::alpakatools::CopyToHost<TColl>::copyAsync(queue, deviceTracks);
-      alpaka::wait(queue);
-      return hostTracks.view().nT();
-    }
-  }
-
   /**
    * This class does vertexing by
-   * - consuming set of Track
+   * - consuming the tracks for vertexing, either the TrackForVertexSoA of PortableTrackSoAProducer
+   *   (inputType "tracks") or the vtxTracks block of the packed MTD event input (inputType
+   *   "mtdEventInput"). The number of tracks is read from the host copy of the same product, so the
+   *   module never reads device memory back.
    * - clusterizing them into track clusters
-   * - fitting cluster properties to vertex coordinates
+   * - fitting cluster properties to vertex coordinates; with alsoWithBS the same clusters are fitted a
+   *   second time with the beam spot constraint (instance "WithBS")
+   * - optionally (timingSrc) the vertex time from the MTD times of the tracks, as fromTracksPID
    * - produces a device vertex product (Vertex)
    */
   class PrimaryVertexProducerPortable : public stream::EDProducer<> {
   public:
     PrimaryVertexProducerPortable(edm::ParameterSet const& config) : stream::EDProducer<>(config) {
-      trackToken_ = consumes(config.getParameter<edm::InputTag>("TrackLabel"));
+      auto const trackLabel = config.getParameter<edm::InputTag>("TrackLabel");
+      auto const inputType = config.getParameter<std::string>("inputType");
+      if (inputType == "tracks") {
+        trackToken_ = consumes(trackLabel);
+        trackHostToken_ = consumes(trackLabel);
+      } else if (inputType == "mtdEventInput") {
+        inputToken_ = consumes(trackLabel);
+        inputHostToken_ = consumes(trackLabel);
+      } else {
+        throw cms::Exception("Configuration") << "inputType must be tracks or mtdEventInput, not " << inputType;
+      }
       beamSpotToken_ = consumes(config.getParameter<edm::InputTag>("BeamSpotLabel"));
       devicePutToken_ = produces();
       tracksInBlocksPutToken_ = produces();
       vertexTracksPutToken_ = produces();
+      alsoWithBS_ = config.getParameter<bool>("alsoWithBS");
+      if (alsoWithBS_) {
+        deviceBSPutToken_ = produces("WithBS");
+        vertexTracksBSPutToken_ = produces("WithBS");
+      }
+      auto const timingSrc = config.getParameter<edm::InputTag>("timingSrc");
+      useTiming_ = not timingSrc.label().empty();
+      if (useTiming_)
+        timingToken_ = consumes(timingSrc);
+      auto const tp = config.getParameter<edm::ParameterSet>("vertexTimeParameters");
+      timeParams_ = {.minTrackVtxWeight = tp.getParameter<double>("minTrackVtxWeight"),
+                     .minTrackTimeQuality = tp.getParameter<double>("minTrackTimeQuality"),
+                     .probPion = tp.getParameter<double>("probPion"),
+                     .probKaon = tp.getParameter<double>("probKaon"),
+                     .probProton = tp.getParameter<double>("probProton"),
+                     .Tstart = tp.getParameter<double>("Tstart"),
+                     .coolingFactor = tp.getParameter<double>("coolingFactor"),
+                     .useMVAVtxTime = tp.getParameter<bool>("useMVAVtxTime")};
       blockSize_ = config.getParameter<int32_t>("blockSize");
       blockOverlap_ = config.getParameter<double>("blockOverlap");
       // Fetch the (not free) ParameterSet once
@@ -71,9 +99,19 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
     }
 
     void produce(device::Event& iEvent, device::EventSetup const& iSetup) override {
-      const TrackForVertexDeviceCollection& inputtracks = iEvent.get(trackToken_);
-      const BeamSpotDevice& beamSpot = iEvent.get(beamSpotToken_);
-      int32_t nT = readNTOnHost(iEvent.queue(), inputtracks);
+      // tracks on the device; their number from the host copy of the same product
+      ::reco::TrackForVertexSoA::ConstView inputtracks;
+      int32_t nT;
+      if (not inputHostToken_.isUninitialized()) {
+        inputtracks = iEvent.get(inputToken_).const_view().vtxTracks();
+        nT = iEvent.get(inputHostToken_).const_view().vtxTracks().nT();
+      } else {
+        inputtracks = iEvent.get(trackToken_).const_view();
+        nT = iEvent.get(trackHostToken_).const_view().nT();
+      }
+      // the beam spot goes to the fit kernel by value
+      auto const& bs = iEvent.get(beamSpotToken_);
+      BeamSpotForFit const beamSpot{float(bs.x0()), float(bs.y0()), float(bs.BeamWidthX()), float(bs.BeamWidthY())};
       int32_t nBlocks = nT > blockSize_ ? int32_t((nT - 1) / ((1. - blockOverlap_) * blockSize_))
                                         : 1;  // If all fit within a block, no need to split
       // Now the device collections we still need
@@ -105,9 +143,36 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
       // Need to have all vertex before arbitrating and deciding what we keep
       clusterizerKernel_.arbitrate(
           iEvent.queue(), tracksInBlocks, scratch, deviceVertex, vertexScratch, clusterParams_, nBlocks, blockSize_);
-      //// And then fit
+      //// And then fit: the fit changes the vertex table, so keep a copy of the clusters for the second fit
+      std::optional<VertexDeviceCollection> deviceVertexBS;
+      if (alsoWithBS_) {
+        deviceVertexBS.emplace(iEvent.queue(), 1024);
+        alpaka::memcpy(iEvent.queue(), deviceVertexBS->buffer(), deviceVertex.buffer());
+      }
       WeightedVertexFitterAlgo fitterKernel_{iEvent.queue(), fitterParams_};
       fitterKernel_.fit(iEvent.queue(), tracksInBlocks, deviceVertex, vertexScratch, vertexTracks, beamSpot);
+      mtdtiming::MtdTimingDevice const* timing = useTiming_ ? &iEvent.get(timingToken_) : nullptr;
+      if (timing)
+        vertexTimes(iEvent.queue(),
+                    timeParams_,
+                    tracksInBlocks.const_view(),
+                    vertexTracks.const_view(),
+                    timing->const_view(),
+                    deviceVertex.view());
+      if (alsoWithBS_) {
+        VertexTrackDeviceCollection vertexTracksBS(iEvent.queue(), nBlocks * blockSize_);
+        WeightedVertexFitterAlgo fitterKernelBS{iEvent.queue(), FitterParameters{.useBeamSpotConstraint = true}};
+        fitterKernelBS.fit(iEvent.queue(), tracksInBlocks, *deviceVertexBS, vertexScratch, vertexTracksBS, beamSpot);
+        if (timing)
+          vertexTimes(iEvent.queue(),
+                      timeParams_,
+                      tracksInBlocks.const_view(),
+                      vertexTracksBS.const_view(),
+                      timing->const_view(),
+                      deviceVertexBS->view());
+        iEvent.emplace(deviceBSPutToken_, std::move(*deviceVertexBS));
+        iEvent.emplace(vertexTracksBSPutToken_, std::move(vertexTracksBS));
+      }
       // Put the vertices in the event as a portable collection
       iEvent.emplace(devicePutToken_, std::move(deviceVertex));
       iEvent.emplace(tracksInBlocksPutToken_, std::move(tracksInBlocks));
@@ -117,12 +182,27 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
     static void fillDescriptions(edm::ConfigurationDescriptions& descriptions) {
       edm::ParameterSetDescription desc;
       desc.add<edm::InputTag>("TrackLabel");
-      desc.add<edm::InputTag>("BeamSpotLabel");
+      desc.add<std::string>("inputType", "tracks")->setComment("tracks or mtdEventInput");
+      desc.add<edm::InputTag>("BeamSpotLabel", edm::InputTag("offlineBeamSpot"))->setComment("reco::BeamSpot");
       desc.add<double>("blockOverlap");
       desc.add<int32_t>("blockSize");
       edm::ParameterSetDescription parf0;
       parf0.add<bool>("useBeamSpotConstraint", true);
       desc.add<edm::ParameterSetDescription>("TkFitterParameters", parf0);
+      desc.add<bool>("alsoWithBS", false)
+          ->setComment("fit the same clusters a second time with the beam spot constraint, instance WithBS");
+      desc.add<edm::InputTag>("timingSrc", edm::InputTag(""))
+          ->setComment("MtdTiming device product (with the MTD quality MVA): vertex time on the device if set");
+      edm::ParameterSetDescription part0;  // same names and defaults as VertexTimeAlgorithmFromTracksPID
+      part0.add<double>("minTrackVtxWeight", 0.5);
+      part0.add<double>("minTrackTimeQuality", 0.8);
+      part0.add<double>("probPion", 0.7);
+      part0.add<double>("probKaon", 0.2);
+      part0.add<double>("probProton", 0.1);
+      part0.add<double>("Tstart", 256.);
+      part0.add<double>("coolingFactor", 0.5);
+      part0.add<bool>("useMVAVtxTime", true);
+      desc.add<edm::ParameterSetDescription>("vertexTimeParameters", part0);
       edm::ParameterSetDescription parc0;
       parc0.add<double>("d0CutOff", 3.0);
       parc0.add<double>("Tmin", 2.0);
@@ -145,10 +225,19 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
 
   private:
     device::EDGetToken<TrackForVertexDeviceCollection> trackToken_;
-    device::EDGetToken<BeamSpotDevice> beamSpotToken_;
+    edm::EDGetTokenT<::reco::TrackForVertexHostCollection> trackHostToken_;
+    device::EDGetToken<mtdtiming::MtdEventInputDevice> inputToken_;
+    edm::EDGetTokenT<::mtdtiming::MtdEventInputHost> inputHostToken_;
+    edm::EDGetTokenT<reco::BeamSpot> beamSpotToken_;
     device::EDPutToken<VertexDeviceCollection> devicePutToken_;
     device::EDPutToken<TrackForVertexDeviceCollection> tracksInBlocksPutToken_;
     device::EDPutToken<VertexTrackDeviceCollection> vertexTracksPutToken_;
+    device::EDPutToken<VertexDeviceCollection> deviceBSPutToken_;
+    device::EDPutToken<VertexTrackDeviceCollection> vertexTracksBSPutToken_;
+    device::EDGetToken<mtdtiming::MtdTimingDevice> timingToken_;
+    bool alsoWithBS_;
+    bool useTiming_;
+    VertexTimeParameters timeParams_;
     int32_t blockSize_;
     double blockOverlap_;
     FitterParameters fitterParams_;

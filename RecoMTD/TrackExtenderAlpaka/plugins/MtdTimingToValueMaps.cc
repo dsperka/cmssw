@@ -35,6 +35,7 @@ public:
     for (auto const& name : kFloatMaps)
       floatTokens_.push_back(produces<edm::ValueMap<float>>(name));
     npixBarrelToken_ = produces<edm::ValueMap<int>>("npixBarrel");
+    mvaToken_ = produces<edm::ValueMap<float>>("mtdQualMVA");
     npixEndcapToken_ = produces<edm::ValueMap<int>>("npixEndcap");
     assocToken_ = produces<edm::ValueMap<int>>("generalTrackassoc");
     posToken_ = produces<edm::ValueMap<GlobalPoint>>("generalTrackmtdpos");
@@ -59,6 +60,7 @@ public:
 
     std::vector<std::vector<float>> f(kFloatMaps.size(), std::vector<float>(n));
     std::vector<int> npixB(n), npixE(n), assoc(n);
+    std::vector<float> mva(n);
     std::vector<GlobalPoint> pos(n);
     for (size_t i = 0; i < n; ++i) {
       auto const& trk = tracks[i];
@@ -92,11 +94,13 @@ public:
       npixB[i] = trk.hitPattern().numberOfValidPixelBarrelHits();
       npixE[i] = trk.hitPattern().numberOfValidPixelEndcapHits();
       assoc[i] = i;
+      mva[i] = r.mva();
       pos[i] = GlobalPoint(r.mtdPosX(), r.mtdPosY(), r.mtdPosZ());
     }
     for (size_t k = 0; k < kFloatMaps.size(); ++k)
       fill(ev, tracksH, f[k], floatTokens_[k]);
     fill(ev, tracksH, npixB, npixBarrelToken_);
+    fill(ev, tracksH, mva, mvaToken_);
     fill(ev, tracksH, npixE, npixEndcapToken_);
     fill(ev, tracksH, assoc, assocToken_);
     fill(ev, tracksH, pos, posToken_);
@@ -205,6 +209,7 @@ private:
   edm::EDGetTokenT<mtdtiming::MtdTimingHost> const timingToken_;
   bool const clones_;
   std::vector<edm::EDPutToken> floatTokens_;
+  edm::EDPutToken mvaToken_;
   edm::EDPutToken npixBarrelToken_, npixEndcapToken_, assocToken_, posToken_, clonesToken_, extrasToken_, hitsOutToken_;
   edm::EDGetTokenT<MTDTrackingDetSetVector> hitsToken_;
   edm::ESGetToken<TrackerTopology, TrackerTopologyRcd> topoToken_;

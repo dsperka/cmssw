@@ -3,4 +3,12 @@
   <class name="mtdtiming::MtdTimingHost::Layout"/>
   <class name="mtdtiming::MtdTimingLayout<128, false>"/>
   <class name="edm::Wrapper<mtdtiming::MtdTimingHost>" splitLevel="0"/>
+
+  <!-- event input of the device chain: transient, never written -->
+  <class name="mtdtiming::MtdEventInputHost" persistent="false"/>
+  <class name="edm::Wrapper<mtdtiming::MtdEventInputHost>" persistent="false"/>
+
+  <!-- device TOF particle identification, as read by TofPidToValueMaps: transient -->
+  <class name="mtdtiming::TofPidHost" persistent="false"/>
+  <class name="edm::Wrapper<mtdtiming::TofPidHost>" persistent="false"/>
 </lcgdict>

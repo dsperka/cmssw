@@ -1,74 +1,21 @@
 #ifndef RecoMTD_TrackExtenderAlpaka_interface_MtdTimingInputSoA_h
 #define RecoMTD_TrackExtenderAlpaka_interface_MtdTimingInputSoA_h
 
-// Internal tables of the MTD timing module (not event products).
-//   Tracks: one row per input track.
-//   Hits:   one row per MTD hit, sorted by (layer, cell); each hit carries its module plane.
-//   Cells:  start index of every cell in the hit table (CSR), size nCells + 1.
+// Tables of the MTD timing module that are not event products (the event input is in
+// DataFormats/MtdTimingSoA/interface/MtdEventInputSoA.h).
+//   BTL geometry: event setup product, made once per geometry by MtdBtlGeometryESProducer.
 //   Records: scratch, one row per (track, layer) with the best hit found in that layer.
 
 #include <cmath>
 #include <cstdint>
 
-#include <Eigen/Core>
-
 #include <alpaka/core/Common.hpp>
 
+#include "DataFormats/MtdTimingSoA/interface/MtdEventInputSoA.h"
+#include "DataFormats/SoATemplate/interface/SoABlocks.h"
 #include "DataFormats/SoATemplate/interface/SoALayout.h"
 
 namespace mtdtiming {
-
-  using Vector15f = Eigen::Matrix<float, 15, 1>;
-
-  GENERATE_SOA_LAYOUT(MtdTrackInLayout,
-                      SOA_COLUMN(int8_t, valid),  // 0 if the track has no TrackExtra (no outer state)
-                      SOA_COLUMN(float, charge),
-                      SOA_COLUMN(float, bz),  // field at the outer state (T)
-                      SOA_COLUMN(float, outX),
-                      SOA_COLUMN(float, outY),
-                      SOA_COLUMN(float, outZ),
-                      SOA_COLUMN(float, outPx),
-                      SOA_COLUMN(float, outPy),
-                      SOA_COLUMN(float, outPz),
-                      SOA_EIGEN_COLUMN(Vector15f, outCov),  // curvilinear 5x5, lower triangle
-                      SOA_COLUMN(float, x0),                // reference point (PCA)
-                      SOA_COLUMN(float, y0),
-                      SOA_COLUMN(float, z0),
-                      SOA_COLUMN(float, ptPca),
-                      SOA_COLUMN(float, pPca),
-                      SOA_COLUMN(float, cosThetaPca),
-                      SOA_COLUMN(float, sigmaPPca))
-
-  GENERATE_SOA_LAYOUT(MtdHitInLayout,
-                      SOA_COLUMN(int8_t, layer),  // 0 = BTL, 1/2 = ETL -z disc 1/2, 3/4 = ETL +z disc 1/2
-                      SOA_COLUMN(uint32_t, detId),
-                      SOA_COLUMN(int32_t, orig),  // index of the hit in the input MTDTrackingDetSetVector data
-                      SOA_COLUMN(float, planeX),  // module plane: position and local axes
-                      SOA_COLUMN(float, planeY),
-                      SOA_COLUMN(float, planeZ),
-                      SOA_COLUMN(float, axX),
-                      SOA_COLUMN(float, axY),
-                      SOA_COLUMN(float, axZ),
-                      SOA_COLUMN(float, ayX),
-                      SOA_COLUMN(float, ayY),
-                      SOA_COLUMN(float, ayZ),
-                      SOA_COLUMN(float, nX),
-                      SOA_COLUMN(float, nY),
-                      SOA_COLUMN(float, nZ),
-                      SOA_COLUMN(float, halfX),  // module half-width / half-length (legacy compatibility test)
-                      SOA_COLUMN(float, halfY),
-                      SOA_COLUMN(float, lx),  // hit local position and error
-                      SOA_COLUMN(float, ly),
-                      SOA_COLUMN(float, exx),
-                      SOA_COLUMN(float, exy),
-                      SOA_COLUMN(float, eyy),
-                      SOA_COLUMN(float, time),
-                      SOA_COLUMN(float, timeError),
-                      SOA_COLUMN(float, gx),  // hit global position
-                      SOA_COLUMN(float, gy),
-                      SOA_COLUMN(float, gz))
-
-  GENERATE_SOA_LAYOUT(MtdCellLayout, SOA_COLUMN(int32_t, start))
 
   // BTL geometry as the legacy navigation sees it (MTDTrayBarrelLayer): "rods" (rows of modules
   // along z, sorted in phi) and their modules (in rod order). For BTL the hit "cell" is the module
@@ -92,19 +39,34 @@ namespace mtdtiming {
                       SOA_COLUMN(int32_t, count),  // rods: number of modules; modules: unused
                       SOA_COLUMN(float, border))   // rods: lower phi border (PhiBorderFinder); modules: unused
 
+  // BTL modules sorted by detector id, to find the module of a hit on the host; and the BTL layer
+  // cylinder and rod bin finder as the legacy navigation sees them.
+  GENERATE_SOA_LAYOUT(MtdBtlLookupLayout,
+                      SOA_COLUMN(uint32_t, rawId),
+                      SOA_COLUMN(int32_t, module),  // row in the modules table
+                      SOA_SCALAR(float, radius),
+                      SOA_SCALAR(float, halfLength),
+                      SOA_SCALAR(float, halfThickness),
+                      SOA_SCALAR(float, rodPhiOffset),
+                      SOA_SCALAR(float, rodPhiStep),
+                      SOA_SCALAR(int32_t, rodsOverlap),
+                      SOA_SCALAR(int32_t, rodsPeriodic))
+
+  // sizes: rods, modules, lookup (= modules)
+  GENERATE_SOA_BLOCKS(MtdBtlGeometryBlocks,
+                      SOA_BLOCK(rods, MtdPlaneLayout),
+                      SOA_BLOCK(modules, MtdPlaneLayout),
+                      SOA_BLOCK(lookup, MtdBtlLookupLayout))
+
   GENERATE_SOA_LAYOUT(MtdRecordLayout,
                       SOA_COLUMN(int32_t, hit),  // best hit passing the cuts, -1 if none
                       SOA_COLUMN(float, est),
                       SOA_COLUMN(float, timeChi2),
                       SOA_COLUMN(float, path))  // signed path from the outer state to the hit plane
 
-  using MtdTrackInSoA = MtdTrackInLayout<>;
-  using MtdHitInSoA = MtdHitInLayout<>;
-  using MtdCellSoA = MtdCellLayout<>;
   using MtdRecordSoA = MtdRecordLayout<>;
   using MtdPlaneSoA = MtdPlaneLayout<>;
-
-  constexpr int kNLayers = 5;
+  using MtdBtlGeometrySoA = MtdBtlGeometryBlocks<>;
 
   // ---- the cell grid used to find nearby hits (about 2 cm cells)
   // BTL: (phi, z) cells. ETL: (x, y) cells, one grid per disc.
@@ -144,8 +106,6 @@ namespace mtdtiming {
     float estimatorMaxChi2;  // 500: candidates above this are ignored (legacy estimator)
     float nSigmaWindow;      // half-size of the search window in track sigmas (legacy: 10)
     float bsTimeSpread;      // 0.2 ns
-    int debug;
-    int skipCandidates;      // validation/timing only               // >0: print the per-layer candidate summary (validation only)
     // per layer, measured from the hits of the event on the host
     float layerRef[kNLayers];     // BTL: mean module radius; ETL: mean module z
     float layerSpread[kNLayers];  // max |r - ref| (BTL) or |z - ref| (ETL) of the modules

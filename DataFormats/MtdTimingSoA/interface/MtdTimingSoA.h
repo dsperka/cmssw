@@ -33,7 +33,8 @@ namespace mtdtiming {
                       SOA_COLUMN(float, t0),
                       SOA_COLUMN(float, sigmat0),
                       SOA_COLUMN(float, beta),
-                      SOA_COLUMN(float, sigmaBeta))
+                      SOA_COLUMN(float, sigmaBeta),
+                      SOA_COLUMN(float, mva))  // MTD track-quality BDT (mtdTrackQualityMVA:mtdQualMVA), -1 if not computed
 
   using MtdTimingSoA = MtdTimingLayout<>;
   using MtdTimingView = MtdTimingSoA::View;

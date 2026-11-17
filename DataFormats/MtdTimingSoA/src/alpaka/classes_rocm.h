@@ -2,3 +2,7 @@
 #include "DataFormats/Common/interface/Wrapper.h"
 #include "DataFormats/MtdTimingSoA/interface/MtdTimingSoA.h"
 #include "DataFormats/MtdTimingSoA/interface/alpaka/MtdTimingDevice.h"
+#include "DataFormats/MtdTimingSoA/interface/MtdEventInputSoA.h"
+#include "DataFormats/MtdTimingSoA/interface/alpaka/MtdEventInputDevice.h"
+#include "DataFormats/MtdTimingSoA/interface/TofPidSoA.h"
+#include "DataFormats/MtdTimingSoA/interface/alpaka/TofPidDevice.h"

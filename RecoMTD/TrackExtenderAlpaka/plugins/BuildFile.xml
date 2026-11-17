@@ -15,6 +15,10 @@
 
 <library file="alpaka/*.cc" name="RecoMTDTrackExtenderAlpakaPluginsPortable">
   <use name="alpaka"/>
+  <use name="CommonTools/MVAUtils"/>
+  <use name="CondFormats/GBRForest"/>
+  <use name="DataFormats/VertexSoA"/>
+  <use name="DataFormats/BeamSpot"/>
   <use name="DataFormats/ForwardDetId"/>
   <use name="DataFormats/MtdTimingSoA"/>
   <use name="DataFormats/Portable"/>
@@ -31,7 +35,10 @@
   <use name="RecoMTD/TrackExtenderAlpaka"/>
   <use name="RecoMTD/DetLayers"/>
   <use name="RecoMTD/Records"/>
+  <use name="RecoVertex/PrimaryVertexProducer"/>
   <use name="TrackingTools/DetLayers"/>
+  <use name="TrackingTools/Records"/>
+  <use name="TrackingTools/TransientTrack"/>
   <flags ALPAKA_BACKENDS="1"/>
   <flags EDM_PLUGIN="1"/>
 </library>

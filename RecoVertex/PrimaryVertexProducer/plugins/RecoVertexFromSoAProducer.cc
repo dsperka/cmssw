@@ -37,7 +37,10 @@ class RecoVertexFromSoAProducer : public edm::stream::EDProducer<> {
 public:
   RecoVertexFromSoAProducer(edm::ParameterSet const& config)
       : portableVertexToken_(consumes(config.getParameter<edm::InputTag>("soaVertex"))),
-        soaTracksInBlocksToken_(consumes(config.getParameter<edm::InputTag>("soaVertex"))),
+        // the tracks in blocks are shared by the "" and "WithBS" fits: no instance name
+        soaTracksInBlocksToken_(consumes(edm::InputTag(config.getParameter<edm::InputTag>("soaVertex").label(),
+                                                       "",
+                                                       config.getParameter<edm::InputTag>("soaVertex").process()))),
         soaVertexTracksToken_(consumes(config.getParameter<edm::InputTag>("soaVertex"))),
         recoTrackToken_(consumes(config.getParameter<edm::InputTag>("srcTrack"))),
         theTTBToken_(esConsumes(edm::ESInputTag("", "TransientTrackBuilder"))),
@@ -45,7 +48,9 @@ public:
     // optional vertex time, computed as for the standard 3D producer (same algorithm, same inputs)
     const auto& timeConf = config.getParameter<edm::ParameterSet>("vertexTimeParameters");
     const std::string timeAlgo = timeConf.getParameter<std::string>("algorithm");
-    if (timeAlgo == "fromTracksPID") {
+    if (timeAlgo == "fromSoA") {
+      timeFromSoA_ = true;  // computed on the device (PrimaryVertexProducerPortable with timingSrc)
+    } else if (timeAlgo == "fromTracksPID") {
       edm::ConsumesCollector collector = consumesCollector();
       timeEstimator_ = std::make_unique<VertexTimeAlgorithmFromTracksPID>(
           timeConf.getParameter<edm::ParameterSet>("fromTracksPID"), collector);
@@ -60,7 +65,7 @@ public:
     desc.add<edm::InputTag>("soaVertex");
     desc.add<edm::InputTag>("srcTrack");
     edm::ParameterSetDescription psdTime;
-    psdTime.add<std::string>("algorithm", "");
+    psdTime.add<std::string>("algorithm", "")->setComment("'', fromTracksPID (here, on the host) or fromSoA (device)");
     edm::ParameterSetDescription psdPID;
     VertexTimeAlgorithmFromTracksPID::fillPSetDescription(psdPID);
     psdTime.add<edm::ParameterSetDescription>("fromTracksPID", psdPID);
@@ -78,6 +83,7 @@ private:
   const edm::ESGetToken<TransientTrackBuilder, TransientTrackRecord> theTTBToken_;
   const edm::EDPutTokenT<reco::VertexCollection> recoVertexToken_;
   std::unique_ptr<VertexTimeAlgorithmFromTracksPID> timeEstimator_;
+  bool timeFromSoA_ = false;
 };
 
 void RecoVertexFromSoAProducer::produce(edm::Event& iEvent, const edm::EventSetup& iSetup) {
@@ -125,6 +131,12 @@ void RecoVertexFromSoAProducer::produce(edm::Event& iEvent, const edm::EventSetu
     double vtxTime = 0.;
     double vtxTimeError = 0.;
     bool hasTime = false;
+    if (timeFromSoA_ && hostVertexView[iV].errt() >= 0) {
+      // float, as returned by VertexTimeAlgorithmFromTracksPID
+      vtxTime = hostVertexView[iV].t();
+      vtxTimeError = hostVertexView[iV].errt();
+      hasTime = true;
+    }
     if (timeEstimator_) {
       std::vector<reco::TransientTrack> ttracks;
       ttracks.reserve(nTrk);

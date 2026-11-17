@@ -1,8 +1,12 @@
 <use name="alpaka"/>
 <use name="eigen"/>
+<use name="DataFormats/MtdTimingSoA"/>
+<use name="DataFormats/Portable"/>
 <use name="DataFormats/SoATemplate"/>
+<use name="FWCore/Utilities"/>
+<use name="HeterogeneousCore/AlpakaCore"/>
+<use name="HeterogeneousCore/AlpakaInterface"/>
+<flags ALPAKA_BACKENDS="1"/>
 <export>
-  <use name="alpaka"/>
-  <use name="eigen"/>
-  <use name="DataFormats/SoATemplate"/>
+  <lib name="1"/>
 </export>

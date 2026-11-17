@@ -17,7 +17,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
                                   const TrackForVertexDeviceCollection::ConstView tracks,
                                   VertexDeviceCollection::View vertices,
                                   VertexScratchCollection::View vertexScratch,
-                                  BeamSpotPOD const* beamSpot,
+                                  BeamSpotForFit const beamSpot,
                                   bool useBeamSpotConstraint) const {
 #ifdef DEBUG_RECOVERTEX_PRIMARYVERTEXPRODUCER_FITTERALGO
       if (once_per_block(acc)) {
@@ -50,12 +50,12 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
       float bsy = 0.;
       if (useBeamSpotConstraint) {
         // beam spot weight 1/sigma^2, as the legacy WeightedMeanFitter (1/cxx)
-        bserrx = beamSpot->beamWidthX < precisionsq ? 1. / (precisionsq)
-                                                    : 1. / (beamSpot->beamWidthX * beamSpot->beamWidthX);
-        bserry = beamSpot->beamWidthY < precisionsq ? 1. / (precisionsq)
-                                                    : 1. / (beamSpot->beamWidthY * beamSpot->beamWidthY);
-        bsx = beamSpot->x;
-        bsy = beamSpot->y;
+        bserrx = beamSpot.beamWidthX < precisionsq ? 1. / (precisionsq)
+                                                   : 1. / (beamSpot.beamWidthX * beamSpot.beamWidthX);
+        bserry = beamSpot.beamWidthY < precisionsq ? 1. / (precisionsq)
+                                                   : 1. / (beamSpot.beamWidthY * beamSpot.beamWidthY);
+        bsx = beamSpot.x;
+        bsy = beamSpot.y;
         corr_x = 1.0;
       }
 #ifdef DEBUG_RECOVERTEX_PRIMARYVERTEXPRODUCER_FITTERALGO
@@ -386,7 +386,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
                                      VertexDeviceCollection& deviceVertex,
                                      VertexScratchCollection& vertexScratch,
                                      VertexTrackDeviceCollection& vertexTracks,
-                                     const BeamSpotDevice& deviceBeamSpot) {
+                                     BeamSpotForFit const& beamSpot) {
     const int nVertexToFit =
         1024;  // Right now it executes for all 1024 vertex, even if vertex collection is empty (in which case the kernel passes)
     const int threadsPerBlock = 32;
@@ -397,7 +397,7 @@ namespace ALPAKA_ACCELERATOR_NAMESPACE {
                         deviceTrack.view(),
                         deviceVertex.view(),
                         vertexScratch.view(),
-                        deviceBeamSpot.data(),
+                        beamSpot,
                         useBeamSpotConstraint_);
     // The fit is complete: compact the track lists into the persistent product
     alpaka::exec<Acc1D>(queue,
