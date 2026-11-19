@@ -11,6 +11,8 @@
 # Optional: MTD_NOTE="html text" adds a note under the summary tables.
 #           NEW_OPTS="vertices=alpaka" extra options of the alpaka job (3D vertices and tofPID4DnoPID on the device)
 #           NEW_NAME="..." name of the alpaka job in the galleries
+# A job whose DQMIO file is already in the work directory is not rerun (copy mtdValidation_legacy_DQMIO.root
+# from an earlier run to compare it with another NEW_OPTS).
 #
 # Output: DQMIO files, harvested DQM_V0001_R000000001__MTD__{legacy,alpaka}__VALID.root,
 #         summary.{json,html}, mtd_{Vertices,Tracks}_gallery.html, dqm_plots/ (overlays + summary.csv)
@@ -26,6 +28,7 @@ NEW_NAME=${NEW_NAME:-Alpaka MTD timing (no refit)}
 for t in legacy alpaka; do
   extra=""
   [ $t = alpaka ] && extra="$NEW_OPTS"
+  [ -s mtdValidation_${t}_DQMIO.root ] && continue  # reuse (e.g. the legacy job of an earlier run, copied here)
   cmsRun "$HERE/mtdValidation_cfg.py" timing=$t $extra maxEvents=$NEV threads=$THREADS inputFiles="$FILES" \
     output=mtdValidation_${t}_DQMIO.root > reco_$t.log 2>&1 &
 done

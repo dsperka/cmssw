@@ -25,6 +25,12 @@ xrootd by default; with local copies, pass `file:/path/to/` as the file prefix. 
 copying them is worth it, and needed for the timing (the page cache is dropped between jobs).
 The jobs run on CPU (`accelerators = ["cpu"]`).
 
+The RelVal digis are made with the 1000 fb⁻¹ detector aging, so the reconstruction must apply it too, as the
+RelVal step3 does (`SLHCUpgradeSimulations/Configuration/aging.customise_aging_1000`). `mtdValidation_cfg.py`
+does this by default (option `aging`, 1000; `aging=0` for none), and the skim, timing and refit configurations
+inherit it. Without it the BTL hits get the unaged light output and time walk: hit times about 0.7 ns late
+(more at low energy) and energies 1.4× too high, which splits 4D vertices.
+
 ## The customisation
 
 `python/customizeMtdTimingAlpaka.py`:
@@ -164,29 +170,33 @@ TOF PID (`vertices=alpaka`). 4D vertices (`offlinePrimaryVertices4D`), from `mtd
 | per event | legacy | Alpaka timing | + device vertices, TOF PID |
 |---|---|---|---|
 | simulated vertices | 189.6 | 189.6 | 189.6 |
-| reconstructed, all | 158.2 | 158.8 | 159.7 |
-| reconstructed, pass ndof | 130.4 | 131.0 | 131.6 |
-| real | 109.96 | 110.03 | 110.25 |
-| fake | 20.41 | 21.00 | 21.34 |
-| split | 14.53 | 15.09 | 15.42 |
-| other fake | 5.87 | 5.90 | 5.92 |
-| real / (real + fake) | 0.843 | 0.840 | 0.838 |
-| real / simulated | 0.580 | 0.580 | 0.581 |
+| reconstructed, all | 142.0 | 142.5 | 142.9 |
+| reconstructed, pass ndof | 119.8 | 120.2 | 120.7 |
+| real | 108.99 | 109.15 | 109.37 |
+| fake | 10.81 | 11.05 | 11.32 |
+| split | 5.24 | 5.45 | 5.70 |
+| other fake | 5.57 | 5.59 | 5.62 |
+| real / (real + fake) | 0.910 | 0.908 | 0.906 |
+| real / simulated | 0.575 | 0.576 | 0.577 |
 
 | leading vertex, mean fraction of its tracks (lower is better) | legacy | Alpaka timing | + device vertices, TOF PID |
 |---|---|---|---|
-| pileup tracks, by multiplicity | 0.2114 | 0.2141 | 0.2131 |
-| pileup tracks, sum pT | 0.0796 | 0.0806 | 0.0786 |
-| pileup tracks, weighted | 0.0278 | 0.0285 | 0.0280 |
-| fake tracks, by multiplicity | 0.0463 | 0.0456 | 0.0449 |
-| secondary tracks, weighted | 0.0570 | 0.0578 | 0.0569 |
+| pileup tracks, by multiplicity | 0.2302 | 0.2280 | 0.2297 |
+| pileup tracks, sum pT | 0.0878 | 0.0849 | 0.0859 |
+| pileup tracks, weighted | 0.0193 | 0.0178 | 0.0185 |
+| fake tracks, by multiplicity | 0.0484 | 0.0479 | 0.0474 |
+| secondary tracks, weighted | 0.0619 | 0.0626 | 0.0621 |
 
 | vertex time | legacy | Alpaka timing | + device vertices, TOF PID |
 |---|---|---|---|
-| RMS of t(rec) − t(sim), all vertices [ps] | 62.1 | 62.2 | 62.4 |
-| RMS, signal vertex [ps] | 20.0 | 20.3 | 20.5 |
-| fraction within 30 ps | 0.473 | 0.471 | 0.471 |
-| vertices with a time (1000 events) | 109962 | 110031 | 110250 |
+| RMS of t(rec) − t(sim), all vertices [ps] | 49.7 | 50.5 | 50.3 |
+| RMS, signal vertex [ps] | 12.8 | 12.7 | 13.4 |
+| fraction within 30 ps | 0.651 | 0.644 | 0.643 |
+| vertices with a time (1000 events) | 108986 | 109154 | 109374 |
+
+Without the aging customisation (earlier runs) all three columns had about 14.5 split and 20.4 fake vertices
+per event, a signal-vertex time RMS of 20 ps and 47% of the vertices within 30 ps; the Alpaka timing then
+gave 0.6 more fake and split vertices per event than legacy, against about 0.2 now.
 
 The device 3D vertices are DA in blocks with a weighted-mean fit, not the host clusterizer and fitter; that
 is where the small differences in the last column come from. Two legacy runs give identical numbers.
@@ -209,7 +219,7 @@ mkdir work && cd work
   (`drop_page_cache.py`, no root needed), wait for an idle machine. `monitor.sh` logs load, core frequency,
   temperature, memory and disk rate every 15 s. At the end `timing_summary.py` prints the tables.
 
-Results, 300 events, 1 thread, Intel Xeon W-2155 (turbo on, governor powersave), input on a local HDD:
+Results (measured before the aging customisation was added; to be redone), 300 events, 1 thread, Intel Xeon W-2155 (turbo on, governor powersave), input on a local HDD:
 
 | throughput (events 6–300) | events/s | s/event |
 |---|---|---|
@@ -249,7 +259,7 @@ mkdir work && cd work
 - `analyze_truth.py` → `truth.txt`: t0 (pion mass) minus the true production time, for simulated pions from
   in-time collisions produced at the beam line.
 
-Results, 100 events: 306k tracks with an MTD time in both, 120k matched to a simulated particle, 89k of them
+Results, 100 events: 314k tracks with an MTD time in both, 126k matched to a simulated particle, 92k of them
 prompt in-time pions.
 
 **The refit barely changes the quoted momentum error, and legacy σ(TOF) is exactly the refitted one.** The
@@ -261,37 +271,38 @@ momentum. So Alpaka σ(TOF) / legacy (median per track) is 1.01–1.06 in BTL an
 
 | p [GeV], region | 68% of tracks within | 95% within | tracks off by more than 10% |
 |---|---|---|---|
-| 0.7–1, BTL | 1.05 → 1.10 | 3.7 → 7.8 | 2.9 → 4.5 |
-| 1–1.5, BTL | 0.99 → 1.10 | 3.2 → 5.6 | 2.0 → 3.1 |
-| 2–3, BTL | 0.95 → 0.97 | 2.7 → 3.6 | 0.5 → 1.0 |
+| 0.7–1, BTL | 1.05 → 1.09 | 3.7 → 7.9 | 2.9 → 4.5 |
+| 1–1.5, BTL | 0.99 → 1.09 | 3.2 → 5.6 | 2.0 → 3.1 |
+| 2–3, BTL | 0.93 → 0.95 | 2.6 → 3.7 | 0.4 → 0.9 |
 | 1–1.5, ETL | 2.3 → 3.8 | 21 → 26 | 15 → 21 |
 | 2–3, ETL | 2.8 → 4.0 | 19 → 36 | 10 → 21 |
 | above 5, ETL | 3.1 → 3.6 | 8.7 → 20 | 3.5 → 12 |
 
 The pulls ((p − p_true)/σ(p)) also get wider after the refit. Matching is by direction only, so part of the
 ETL tails are wrong matches; they are the same tracks for the original and the refit. The true momentum is
-taken at production, before energy loss.
+taken at production, before energy loss. `make_plots.py` draws these (`plots/`).
 
-**Path length.** The medians agree, but the path differs by more than 1 cm (33 ps) for 27% of the BTL and
-14% of the ETL tracks, and by more than 5 cm for 8% and 3% (19% of BTL tracks at 0.7–1 GeV). Legacy and
-Alpaka pick the same MTD hit for 97.6% of the pions.
+**Path length.** The medians agree, but the path differs by more than 1 cm (33 ps) for 25% of the BTL and
+14% of the ETL tracks, and by more than 5 cm for 7% and 3% (18% of BTL tracks at 0.7–1 GeV). Legacy and
+Alpaka pick the same MTD hit for 97.8% of the pions.
 
-**t0 against the true time** (pions, same MTD hit, BTL offset removed):
+**t0 against the true time** (pions, same MTD hit):
 
 | path difference | tracks | median \|t0 − t_true\| legacy | Alpaka | Alpaka closer |
 |---|---|---|---|---|
-| BTL, 1–5 cm | 5778 | 272 ps | 273 ps | 49% |
-| BTL, more than 5 cm (median p 0.86 GeV) | 2612 | 833 ps | 308 ps | 74% |
-| ETL, 1–5 cm | 1836 | 269 ps | 266 ps | 52% |
+| BTL, 1–5 cm | 5888 | 110 ps | 123 ps | 43% |
+| BTL, more than 5 cm (median p 0.86 GeV) | 2511 | 950 ps | 131 ps | 86% |
+| ETL, 1–5 cm | 1837 | 268 ps | 266 ps | 52% |
 | ETL, more than 5 cm | 455 | 428 ps | 396 ps | 52% |
 
-Width of t0 − t_true (half of the central 68%), all pions: BTL 0.7–1 GeV 541 ps legacy, 421 ps Alpaka;
-1–1.5 GeV 344 and 352 ps; above 1.5 GeV and all of ETL the same within a few ps. Where the two path lengths
-disagree a lot, it is the legacy refitted trajectory that is wrong.
+Width of t0 − t_true (half of the central 68%), legacy / Alpaka:
 
-**BTL times are about 740 ps late, in legacy and Alpaka alike.** t0 − t_true peaks at +741 ps in BTL and +4 ps
-in ETL. It comes from the BTL hit time itself (t_mtd − t_true 6.38 ns against a time of flight of 5.53 ns,
-medians), for signal and pileup alike. A 4D vertex with BTL and ETL tracks sees them disagree by about
-0.7 ns. Not understood yet: to be checked against another release or with the MTD experts. Also in both:
-σ(t0) is large (median 1.33 ns in BTL, 0.29 ns in ETL, against 23–26 ps for the MTD hit), so it must include
-the unknown-mass term.
+| p [GeV] | 0.7–1 | 1–1.5 | 1.5–2 | 2–3 | 3–5 | above 5 |
+|---|---|---|---|---|---|---|
+| BTL [ps] | 374 / 85 | 81 / 83 | 80 / 84 | 71 / 74 | 65 / 66 | 56 / 57 |
+| ETL [ps] | 60 / 60 | 52 / 53 | 60 / 59 | 92 / 100 | 66 / 68 | 49 / 48 |
+
+Where the two path lengths disagree a lot (mostly BTL below 1 GeV), it is the legacy refitted trajectory that
+is wrong. For small differences (1–5 cm) legacy is slightly closer. The medians of t0 − t_true are +1 ps in BTL
+and +4 ps in ETL. σ(t0) is large in both (median 1.23 ns in BTL, 0.29 ns in ETL, against 41 and 26 ps for the
+MTD hit), so it must include the unknown-mass term.

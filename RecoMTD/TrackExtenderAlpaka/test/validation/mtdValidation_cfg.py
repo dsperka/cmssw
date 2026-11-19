@@ -163,6 +163,8 @@ options.register('timing', 'alpaka', VarParsing.multiplicity.singleton, VarParsi
 options.register('vertices', 'legacy', VarParsing.multiplicity.singleton, VarParsing.varType.string,
                  'legacy: host 3D vertices and tofPID4DnoPID; alpaka: on the device (needs timing=alpaka)')
 options.register('threads', 8, VarParsing.multiplicity.singleton, VarParsing.varType.int, 'number of threads')
+options.register('aging', 1000, VarParsing.multiplicity.singleton, VarParsing.varType.int,
+                 'detector aging of the input digis in fb-1 (0: none). The Phase-2 RelVals are digitized with 1000')
 options.register('output', 'mtdValidation_DQMIO.root', VarParsing.multiplicity.singleton, VarParsing.varType.string,
                  'DQMIO output file (outputFile would get a _numEventN suffix)')
 options.parseArguments()
@@ -171,6 +173,13 @@ process.source.fileNames = options.inputFiles
 process.maxEvents.input = options.maxEvents
 process.DQMoutput.fileName = 'file:' + options.output
 process.options.numberOfThreads = options.threads
+
+# The reconstruction must use the aging of the digitization (as the RelVal step3 does with
+# --customise SLHCUpgradeSimulations/Configuration/aging.customise_aging_1000): with the unaged BTL constants
+# the aged BTL digis give hit times about 0.7 ns late (more at low energy) and energies 1.4x too high.
+if options.aging:
+    import SLHCUpgradeSimulations.Configuration.aging as _aging
+    process = getattr(_aging, 'customise_aging_%d' % options.aging)(process)
 
 if options.vertices not in ('legacy', 'alpaka') or (options.vertices == 'alpaka' and options.timing != 'alpaka'):
     raise ValueError('vertices must be legacy or alpaka, and alpaka needs timing=alpaka')
